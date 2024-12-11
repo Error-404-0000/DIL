@@ -1,0 +1,10 @@
+﻿class: Pet
+LET Name = "Unknown" as string;
+LET Age = 0 as int;
+class: end
+
+new myPet = Pet:new;
+
+
+GET myPet->Name;
+GET myPet->Age;  
