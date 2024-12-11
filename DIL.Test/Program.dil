@@ -1,8 +1,7 @@
-﻿class: Pet
-LET Name = "Unknown" as string;
-LET Age = 0 as int;
-class: end
-
+﻿class Pet:
+	userid:23;
+	userid2:1;
+class:end;
 new myPet = Pet:new;
 
 

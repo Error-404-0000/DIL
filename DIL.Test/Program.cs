@@ -12,9 +12,9 @@ class Program
 {
     static void Main(string[] args)
     {
-        //Console.WriteLine(2+2*(22));
-        //InlineEvaluate inline = new InlineEvaluate(@"2+2*(22)");
-        //Console.WriteLine(inline.Parse(@"2+(2*(22))"));
+        //Console.WriteLine(2 + 2 * (22));
+        //InlineEvaluate inline = new InlineEvaluate(@"2*2/(4*6)");
+        //Console.WriteLine(inline.Parse());
         InterpreterCore interpreterCore = new InterpreterCore();
         interpreterCore.RegisterComponent(typeof(ClassComponent));
         interpreterCore.RegisterComponent(typeof(LetComponent));

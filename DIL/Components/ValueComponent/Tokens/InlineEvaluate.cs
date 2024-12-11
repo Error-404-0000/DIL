@@ -10,7 +10,7 @@ namespace DIL.Components.ValueComponent.Tokens
     public class InlineEvaluate : GetComponent
     {
         private const string TokenRegex =
-            @"(?<NUMBER>\d+(\.\d+)?)|(?<STRING>"".*?"")|(?<OPERATOR>[+\-*/%&|^<>=!~]+)|(?<BRACKET>[(){}[\]])|(?<IDENTIFIER>[a-zA-Z_][a-zA-Z0-9_]*)";
+            @"(?<NUMBER>\d+(\.\d+)?)|(?<STRING>"".*?"")|(?<OPERATOR>(\+|\-|\*|%|&|<|>|>=|<=|==|=!|&|&&|\||\|\|))|(?<BRACKET>[(){}[\]])|(?<IDENTIFIER>[a-zA-Z_][a-zA-Z0-9_]*)";
 
         private readonly List<Token> tokens;
         private static readonly Dictionary<TokenOperator, string> OperatorSymbols = new()
@@ -35,7 +35,7 @@ namespace DIL.Components.ValueComponent.Tokens
         {
             this._inline = inline;
             tokens = BuildTokens(inline);
-            ValidateTokens(tokens, inline);
+            ValidateTokens(tokens);
         }
 
         private List<Token> BuildTokens(string inline)
@@ -108,11 +108,26 @@ namespace DIL.Components.ValueComponent.Tokens
                     ));
                 }
             }
-
-            return tokenList;
+           
+            return /*reves(*/tokenList/*)*/;
         }
-
-        private void ValidateTokens(List<Token> tokenList, string inline)
+        private List<Token> reves(List<Token> tokens)
+        {
+            List<Token> ret = new List<Token>(tokens.Count+1);
+            for (int i = tokens.Count-1; i!=-1; i--)
+            {
+                if (tokens[i].tokenType == TokenType.Bracket)
+                {
+                    ret.Add(new(tokens[i].tokenType, tokens[i].@operator, (tokens[i].value is string s && s == ")" ? "(" : tokens[i].value is string m&& m=="("?")": tokens[i].value), tokens[i].postion_start, tokens[i].postion_end));
+                }
+                else
+                {
+                    ret.Add(tokens[i]);
+                }
+            }
+            return ret;
+        }
+        private void ValidateTokens(List<Token> tokenList)
         {
             // Check for empty token list
             if (tokenList.Count == 0)
@@ -190,7 +205,7 @@ namespace DIL.Components.ValueComponent.Tokens
             // The expression shouldn't end with an operator
             var lastToken = tokenList[^1];
             if (lastToken.tokenType == TokenType.Operator)
-                throw new InvalidOperationException($"Expression ends with an operator '{lastToken.value}' which is invalid.");
+                throw new InvalidOperationException($"Expression ends with an operator '{lastToken.value}'.");
 
         }
 
@@ -301,7 +316,7 @@ namespace DIL.Components.ValueComponent.Tokens
             if (opar == TokenOperator.None)
             {
                 // If operator is None, just return the left value
-                return left;
+                throw new InvalidOperationException(@$"invalid operation: ""{left}"" at {left} {nameof(opar)} {right}");
             }
 
             switch (opar)
@@ -355,7 +370,8 @@ namespace DIL.Components.ValueComponent.Tokens
 
                 case TokenOperator.NotEqual:
                     return !Equals(left, right);
-
+                case TokenOperator.LessThanOrEqual: return Equals(left, right)|| Convert.ToDouble(left) < Convert.ToDouble(right);
+                case TokenOperator.GreaterThanOrEqual: return Equals(left, right) || Convert.ToDouble(left) > Convert.ToDouble(right);
                 default:
                     throw new NotImplementedException($"Operator '{opar}' is not implemented.");
             }
@@ -376,6 +392,8 @@ namespace DIL.Components.ValueComponent.Tokens
                 "||" => TokenOperator.LogicalOr,
                 ">" => TokenOperator.GreaterThan,
                 "<" => TokenOperator.LessThan,
+                "<=" => TokenOperator.LessThanOrEqual,
+                ">="=>TokenOperator.GreaterThanOrEqual,
                 "==" => TokenOperator.Equal,
                 "!=" => TokenOperator.NotEqual,
                 _ => TokenOperator.None

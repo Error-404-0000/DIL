@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Text.RegularExpressions;
 
 namespace DIL.Components.ClassComponent
 {
@@ -45,21 +47,37 @@ namespace DIL.Components.ClassComponent
     public class ClassDefinition
     {
         public string Name { get; }
-        public Dictionary<string, object?> Properties { get; }
+        public Dictionary<string, object?> Fields { get; }
         public Dictionary<string, Func<object[], object?>> Methods { get; }
 
-        public ClassDefinition(string name)
+        public ClassDefinition(string name,string body)
         {
             Name = name;
-            Properties = new Dictionary<string, object?>();
-            Methods = new Dictionary<string, Func<object[], object?>>();
+            Fields = BuildFields(body);
+        }
+        public Dictionary<string, object?> BuildFields(string str_fields)
+        {
+            Dictionary<string, object?> fields= new Dictionary<string, object?>();
+            var matches = Regex.Matches(string.Join(" ", str_fields.Split("\n")), @"(^(\w+[\W\d\S]*)\s*\:\s*(.*)\s*$)*");
+            if (matches.Count > 0)
+            {
+                foreach (Match item in matches)
+                {
+                    if (fields.ContainsKey(item.Value))
+                    {
+                        throw new DuplicateNameException($"DuplicateNameException in {item}.");
+                    }
+                    fields.Add(item.Groups[1].Value, item.Groups[2].Value);
+                }
+            }
+            return fields;
         }
 
         public void AddProperty(string propertyName, object? defaultValue = null)
         {
-            if (Properties.ContainsKey(propertyName))
+            if (Fields.ContainsKey(propertyName))
                 throw new Exception($"Property '{propertyName}' is already defined in class '{Name}'.");
-            Properties[propertyName] = defaultValue;
+            Fields[propertyName] = defaultValue;
         }
 
         public void AddMethod(string methodName, Func<object[], object?> method)

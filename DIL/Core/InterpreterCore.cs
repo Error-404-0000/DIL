@@ -18,6 +18,7 @@ namespace DIL.Core
         private readonly List<IMiddleware> _middlewares = new();
         private readonly Dictionary<string, Type> _registeredComponents = new();
         private int excute_line = 0;
+
         /// <summary>
         /// Registers a middleware to the interpreter pipeline.
         /// </summary>
@@ -41,13 +42,16 @@ namespace DIL.Core
             var alias = componentType.GetCustomAttribute<AutoInterpretAttribute>()?.Alias ?? componentType.Name;
             _registeredComponents[alias] = componentType;
         }
+
         public InterpreterCore()
         {
             AddMiddleware(new RemoveCommentsMiddleware());
             AddMiddleware(new FlattenMultilineMiddleware());
             AddMiddleware(new TrimWhitespaceMiddleware());
         }
+
         private List<string> lines = new List<string>();
+
         /// <summary>
         /// Processes and executes the given input dynamically.
         /// </summary>
@@ -61,21 +65,30 @@ namespace DIL.Core
             // Step 1: Run input through the middleware pipeline
             string processedInput = RunMiddleware(input);
 
-            // Step 2: Execute each line of the processed input
-            //string pattern = @"(?<=^|;|\n|end|End|END)([^"";]*(""[^""]*"")?[^"";]*)";
+            // We use a single-line regex pattern that splits on either ';' or 'end' (in various cases),
+            // but not within strings. The pattern uses lookbehind to split lines whenever we encounter
+            // a start-of-line or one of our delimiters (e.g., ';', 'end', 'End', 'END'), outside of quotes.
+            // We do not consider ';' or 'end' inside quotes as delimiters.
+            //
+            // The pattern explanation:
+            // (?<=^|;|end|End|END) means we look behind for start, a semicolon, or 'end' variants.
+            // ([^";]*(" [^"]* ")?[^";]*) is a rough pattern that captures a segment potentially containing a quoted string.
+            //
+            // This ensures we split on ';' or 'end' but not inside strings.
+            string pattern = @"(?<=^|;|end|End|END|:)([^"";]*(""(?:[^""]*)""[^"";]*)*)";
 
-            //var matches = Regex.Matches(processedInput, pattern, RegexOptions.IgnoreCase);
+            var matches = Regex.Matches(processedInput, pattern, RegexOptions.IgnoreCase);
 
+            foreach (Match match in matches)
+            {
+                string value = match.Value.Trim();
+                if (!string.IsNullOrEmpty(value))
+                {
+                    lines.Add(value);
+                }
+            }
 
-            //foreach (Match match in matches)
-            //{
-            //    string value = match.Value.Trim();
-            //    if (!string.IsNullOrEmpty(value))
-            //    {
-            //        lines.Add(value);
-            //    }
-            //}
-            lines = input.Split([ ";", "\r\n" ], StringSplitOptions.RemoveEmptyEntries).ToList();
+            // Execute each line one by one
             for (; excute_line < lines.Count; excute_line++)
             {
                 try
@@ -85,7 +98,7 @@ namespace DIL.Core
                 catch (Exception ex)
                 {
                     Console.ForegroundColor = ConsoleColor.Red;
-                    DisplayCodeWithError($"{lines[excute_line]} : {ex.InnerException?.Message ?? ex.Message} in line {excute_line+1}", 1, lines[excute_line].Length - 1);
+                    DisplayCodeWithError($"{lines[excute_line]} : {ex.InnerException?.Message ?? ex.Message} in line {excute_line + 1}", 1, lines[excute_line].Length - 1);
                     Console.ResetColor();
                     unsafe
                     {
@@ -93,10 +106,10 @@ namespace DIL.Core
                     }
                 }
             }
-           
 
             return null;
         }
+
         static void DisplayCodeWithError(string code, int startPosition, int errorLength)
         {
             // Print the code
@@ -110,38 +123,58 @@ namespace DIL.Core
             Console.WriteLine(underline);
             Console.ResetColor();
         }
+
         /// <summary>
         /// Executes a single line of input dynamically.
+        /// Here we find all methods that match and choose the "best" one.
+        /// "Best" is defined as the match that has the longest match length or is most specific.
         /// </summary>
         /// <param name="line">The line of input to execute.</param>
         private void ExecuteLine(string line)
         {
             if (string.IsNullOrEmpty(line))
-                return; 
+                return;
+
+            // Collect all matches from all methods and pick the best one.
+            List<(MethodInfo method, Type componentType, Match match, string pattern)> potentialMatches = new();
+
             foreach (var component in _registeredComponents)
             {
-                if (string.IsNullOrEmpty(line))
-                    continue;
-
                 var methods = component.Value.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
                 foreach (var method in methods)
                 {
                     var regexAttribute = method.GetCustomAttribute<RegexUseAttribute>();
-                 
                     var full_i = method.GetCustomAttribute<RegexUseFullInstructionAttribute>();
-                    if (regexAttribute != null && (full_i!=null? Regex.IsMatch(string.Join("\n", lines.Skip(excute_line-1)), regexAttribute.Pattern): Regex.IsMatch(line, regexAttribute.Pattern)))
+                    if (regexAttribute != null)
                     {
-                        ExecuteMethod(component.Value, method, line, regexAttribute.Pattern);
-                        return;
+                        // If we have a full instruction attribute, we match against the entire remaining input lines
+                        // starting from current line, otherwise just the single line.
+                        string target = full_i != null ? string.Join("\n", lines.Skip(excute_line)) : line;
+
+                        var match = Regex.Match(target, regexAttribute.Pattern);
+                        if (match.Success)
+                        {
+                            // Store this match for later selection.
+                            potentialMatches.Add((method, component.Value, match, regexAttribute.Pattern));
+                        }
                     }
                 }
             }
 
-            throw new Exception($"Invalid token: \"{line}\"");
+            if (!potentialMatches.Any())
+            {
+                throw new Exception($"Invalid token: \"{line}\"");
+            }
+
+            // Pick the best match. We define "best" as the longest match or the most specific.
+            // For simplicity, let's pick the one with the longest matched value length.
+            var best = potentialMatches.OrderByDescending(m => m.match.Value.Length).First();
+
+            ExecuteMethod(best.componentType, best.method, best.match.Value, best.pattern);
         }
-        
+
         /// <summary>
-        /// Executes a method dynamically based on regex matching.
+        /// Executes a method dynamically based on the provided regex match.
         /// </summary>
         internal object? ExecuteMethod(Type componentType, MethodInfo method, string input, string pattern)
         {
@@ -152,7 +185,8 @@ namespace DIL.Core
             var parameters = method.GetParameters();
             var args = new object?[parameters.Length];
             int excute_line_jump = 0;
-            bool is_jump_set=  false;
+            bool is_jump_set = false;
+
             for (int i = 0; i < parameters.Length; i++)
             {
                 var fromRegexIndexAttribute = parameters[i].GetCustomAttribute<FromRegexIndexAttribute>();
@@ -163,7 +197,7 @@ namespace DIL.Core
                         args[i] = cv.IBindConvert.Convert(match.Groups[fromRegexIndexAttribute.Index].Value);
                         continue;
                     }
-                    
+
                     args[i] = match.Groups[fromRegexIndexAttribute.Index].Value;
                     continue;
                 }
@@ -175,12 +209,11 @@ namespace DIL.Core
                 }
                 if (parameters[i].GetCustomAttribute<CorePassCurrentLine_IndexAttribute>() is not null && parameters[i].ParameterType == typeof(int))
                 {
-                    args[i] =  excute_line;
+                    args[i] = excute_line;
                     continue;
                 }
                 if (parameters[i].GetCustomAttribute<CorePassLinesAttribute>() is not null && parameters[i].ParameterType == typeof(string[]))
                 {
-
                     args[i] = lines.ToArray();
                     continue;
                 }
@@ -191,7 +224,7 @@ namespace DIL.Core
             }
 
             var instance = Activator.CreateInstance(componentType);
-            var result =  method.Invoke(instance, args);
+            var result = method.Invoke(instance, args);
             excute_line += excute_line_jump;
             return result;
         }
@@ -204,12 +237,10 @@ namespace DIL.Core
         private string RunMiddleware(string input)
         {
             string result = input;
-
             foreach (var middleware in _middlewares)
             {
                 result = middleware.Process(result);
             }
-
             return result;
         }
     }

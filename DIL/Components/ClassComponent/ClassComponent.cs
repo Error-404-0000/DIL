@@ -16,33 +16,38 @@ namespace DIL.Components.ClassComponent
         /// <summary>
         /// Starts defining a new class. Dynamically calculates lines to skip.
         /// </summary>
-        [RegexUse(@"^class:\s*(\w+)\s*$")]
+        [RegexUse(@"^class\s*(\w+)\s*:\s*(.*)$")]
         public void StartClassDefinition(
             [FromRegexIndex(1)] string className,
+            [FromRegexIndex(2)] string _top_regex,
             [CorePassCurrentLine_IndexAttribute]int line,
             [CorePassLinesAttribute]string[] line_,
             [CoreUpdateLineBy] out int jump_by)
         {
-            var classDefinition = new ClassDefinition(className);
-            ClassDefinitionManager.RegisterClass(className, classDefinition);
-            Console.WriteLine($"Started defining class '{className}'.");
-
+            
             // Dynamically calculate how many lines to skip (until `class:end`).
             var currentLineIndex = line;
             var lines = line_;
             int skipLines = 0;
-
+            string body = _top_regex; 
             for (int i = currentLineIndex + 1; i < lines.Length; i++)
             {
+                
                 if (Regex.IsMatch(lines[i], @"^class:\s*end$"))
                 {
                     skipLines = i - currentLineIndex;
                     break;
                 }
+                else
+                {
+                    body +="\n" +lines[i];
+                }
             }
 
             if (skipLines == 0)
                 throw new Exception($"Missing 'class:end' for class '{className}' starting at line {currentLineIndex}.");
+            var classDefinition = new ClassDefinition(className,body);
+            ClassDefinitionManager.RegisterClass(className, classDefinition);
 
             jump_by = skipLines; // Update the number of lines to skip.
         }

@@ -14,7 +14,7 @@ namespace DIL.Components.ClassComponent
         public ClassInstance(ClassDefinition classDefinition)
         {
             _classDefinition = classDefinition;
-            _instanceProperties = new Dictionary<string, object?>(classDefinition.Properties);
+            _instanceProperties = new Dictionary<string, object?>(classDefinition.Fields);
         }
 
         public object? GetProperty(string propertyName)

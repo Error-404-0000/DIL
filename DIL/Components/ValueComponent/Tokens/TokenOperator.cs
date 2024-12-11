@@ -21,8 +21,9 @@ namespace DIL.Components.ValueComponent.Tokens
         GreaterThan, // >
         LessThan, // <
         Equal, // ==
-        NotEqual // !=
-        // Add more operators as needed
+        NotEqual,
+        LessThanOrEqual,
+        GreaterThanOrEqual,
     }
 
 
