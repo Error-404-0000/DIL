@@ -1,0 +1,3429 @@
+// ===== FILE: Program.cs =====
+using System;
+
+using DIL.Components;
+using DIL.Components.ClassComponents;
+using DIL.Components.ForLoop;
+using DIL.Components.GotoCOmponent;
+using DIL.Components.ValueComponent;
+using DIL.Components.ValueComponent.Tokens;
+using DIL.Core;
+using DIL.Middlewares;
+
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        //Console.WriteLine(2 + 2 * (22));
+        //InlineEvaluate inline = new InlineEvaluate(@"2*2/(4*6)");
+        //Console.WriteLine(inline.Parse());
+        InterpreterCore interpreterCore = new InterpreterCore();
+        interpreterCore.RegisterComponent(typeof(ClassComponent));
+        interpreterCore.RegisterComponent(typeof(LetComponent));
+        interpreterCore.RegisterComponent(typeof(IfElseComponent));
+        interpreterCore.RegisterComponent(typeof(ForLoopComponent));
+        interpreterCore.RegisterComponent(typeof(ForEachComponent));
+        interpreterCore.RegisterComponent(typeof(@goto));
+
+        interpreterCore.RegisterComponent(typeof(GetComponent));
+        interpreterCore.Execute(File.ReadAllText("C:\\Users\\Demon\\source\\repos\\DIL\\DIL.Test\\Condition.dil"));
+
+    }
+}
+
+
+// ===== FILE: AutoInterpretAttribute.cs =====
+namespace DIL.Attributes
+{
+    /// <summary>
+    /// Indicates that a class or method is intended to be interpreted dynamically.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
+    public class AutoInterpretAttribute : Attribute
+    {
+        public string? Alias { get; } // Optional alias for easier referencing in the interpreter.
+
+        public AutoInterpretAttribute(string? Alias = null)
+        {
+            this.Alias = Alias;
+        }
+    }
+}
+
+
+// ===== FILE: ConvertFromStringAttribute.cs =====
+using DIL.Interfaces;
+using System;
+
+namespace DIL.Attributes
+{
+    /// <summary>
+    /// Attribute to convert a string parameter into a specific type using a custom converter.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Parameter)]
+    public class ConvertFromStringAttribute : Attribute
+    {
+        public IBindConvert IBindConvert { get; }
+
+        /// <summary>
+        /// Constructor that takes a converter type implementing IBindConvert.
+        /// </summary>
+        /// <param name="bind">The type of the converter that implements IBindConvert.</param>
+        public ConvertFromStringAttribute(Type bind)
+        {
+            if (!typeof(IBindConvert).IsAssignableFrom(bind))
+            {
+                throw new ArgumentException($"The type {bind.FullName} must implement IBindConvert.");
+            }
+
+            // Create an instance of the converter
+            IBindConvert = (IBindConvert)Activator.CreateInstance(bind)!
+                ?? throw new Exception($"Failed to create an instance of {bind.FullName}.");
+        }
+    }
+}
+
+
+// ===== FILE: CorePassCurrentLine_IndexAttribute.cs =====
+namespace DIL.Attributes
+{
+    internal class CorePassCurrentLine_IndexAttribute : Attribute
+    {
+    }
+}
+
+// ===== FILE: CorePassLinesAttribute.cs =====
+namespace DIL.Attributes
+{
+    internal class CorePassLinesAttribute : Attribute
+    {
+    }
+}
+
+// ===== FILE: CoreUpdateLineByAttribute.cs =====
+namespace DIL.Attributes
+{
+    [AttributeUsage(AttributeTargets.Parameter)]
+    public class CoreUpdateLineByAttribute:Attribute;
+   
+}
+
+// ===== FILE: DefaultEntryPointAttribute.cs =====
+using System;
+
+namespace DIL.Attributes
+{
+
+    /// <summary>
+    /// Specifies that a property or method is a default entry point for the interpreter.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
+    public class DefaultEntryPointAttribute : Attribute
+    {
+    }
+}
+
+
+// ===== FILE: ExternalCallableAttribute.cs =====
+namespace DIL.Attributes
+{
+    /// <summary>
+    /// Indicates that a class, property, or method can be called externally by the interpreter.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method | AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
+    public class ExternalCallableAttribute : Attribute
+    {
+        public string? Alias { get; } // Optional alias for external call.
+
+        public ExternalCallableAttribute(string? alias = null)
+        {
+            Alias = alias;
+        }
+    }
+}
+
+
+// ===== FILE: FromRegexIndexAttribute.cs =====
+namespace DIL.Attributes
+{
+    /// <summary>
+    /// Specifies that a parameter value should be dynamically populated using a Regex group match.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
+    public class FromRegexIndexAttribute : Attribute
+    {
+        public int Index { get; }
+
+        public FromRegexIndexAttribute(int index)
+        {
+            Index = index;
+        }
+    }
+}
+
+
+// ===== FILE: RegexUseAttribute.cs =====
+namespace DIL.Attributes
+{
+    /// <summary>
+    /// Specifies a regular expression pattern that this method should match to be invoked.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
+    public class RegexUseAttribute : Attribute
+    {
+        public string Pattern { get; }
+
+        public RegexUseAttribute(string pattern)
+        {
+            Pattern = pattern;
+        }
+    }
+}
+
+
+// ===== FILE: RegexUseFullInstructionAttribute.cs =====
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace DIL.Attributes
+{
+    //tells the parser not to use line by line but the full code
+    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+    public class RegexUseFullInstructionAttribute:Attribute;
+ 
+}
+
+
+// ===== FILE: GetLenghtIBindComponent.cs =====
+using DIL.Interfaces;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace DIL.BindConvertComponents
+{
+    internal class GetLenghtIBindComponent : IBindConvert
+    {
+        /// <summary>
+        /// simple example of impl
+        /// </summary>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        public dynamic? Convert(dynamic? value)
+        {
+           return value?.ToString().Length??0;
+        }
+    }
+}
+
+
+// ===== FILE: ToIntComponents.cs =====
+using DIL.Interfaces;
+
+namespace DIL.BindConvertCompoents
+{
+    public class ToIntComponents : IBindConvert
+    {
+        public dynamic? Convert(dynamic? value)
+        {
+            return System.Convert.ToInt32(value);
+        }
+    }
+}
+
+
+// ===== FILE: ToStringComponents.cs =====
+using DIL.Interfaces;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace DIL.BindConvertComponents
+{
+    public class ToStringComponents : IBindConvert
+    {
+        public dynamic? Convert(dynamic? value)
+        {
+            return System.Convert.ToString(value);
+        }
+    }
+}
+
+
+// ===== FILE: GetComponent.cs =====
+using DIL.Attributes;
+using DIL.Components.ValueComponent;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace DIL.Components
+{
+    [AutoInterpret(Alias:"GET")]
+    public class GetComponent
+    {
+        /// <summary>
+        /// Retrieves a stored variable or a property/index of it dynamically.
+        /// If the variable does not exist, returns null.
+        /// get value
+        /// get value->tree->array1[2]
+        /// </summary>
+        [RegexUse(@"^(?:GET|get|Get)\s+(.+)$")]
+        public object? GetVariable([FromRegexIndex(1)] string query)
+        {
+            var e =  LetDynamicHandler.HandleGet(query);
+            return e;
+        }
+        public void NewSetByRef(string name,ref object newvalue)
+        {
+           LetValueStore.NewSet(name, newvalue);
+
+        }
+        private string ISStr(string value)
+        {
+            if (value.StartsWith("\"") && value.EndsWith("\""))
+            {
+                return value.Substring(1, value.Length - 2); // Remove surrounding quotes
+            }
+            return value;
+        }
+
+        private object EvaluateQuery(string query)
+        {
+            // Handle string literal
+            if (query.StartsWith("\"") && query.EndsWith("\""))
+            {
+                return ISStr(query); // Already a string
+            }
+
+            // Handle numeric values
+            if (double.TryParse(query, out double numericValue))
+            {
+                return numericValue;
+            }
+
+            // Attempt to resolve from LetDynamicHandler
+            try
+            {
+                var result = LetDynamicHandler.HandleGet(query);
+                return result;
+            }
+
+            catch
+            {
+                // Fall back to parsing expression
+                return LetParser.Parse(query);
+            }
+        }
+
+        [RegexUse(@"^(?:PRINTF|Printf|printf)\s+(.+)$")]
+        public void PrintFValue([FromRegexIndex(1)] string query)
+        {
+            var value = EvaluateQuery(query);
+            Console.WriteLine(value);
+        }
+
+        [RegexUse(@"^(?:PRINT|Print|print)\s+(.+)$")]
+        public void PrintValue([FromRegexIndex(1)] string query)
+        {
+            var value = EvaluateQuery(query);
+            Console.Write(value);
+        }
+
+        public void NewSet(string name, object newvalue)
+        {
+            LetValueStore.NewSet(name, newvalue);
+
+        }
+    }
+}
+
+
+// ===== FILE: MathCompent.cs =====
+using System;
+using DIL.Attributes;
+using DIL.BindConvertCompoents;
+
+namespace DIL.Components
+{
+    /// <summary>
+    /// A basic math component that handles simple arithmetic operations.
+    /// </summary>
+    [AutoInterpret(Alias: "Math")]
+    public class MathComponent
+    {
+        /// <summary>
+        /// Adds two numbers.
+        /// Example: ADD 10 5
+        /// </summary>
+        [RegexUse(@"^ADD\s+(\d+)\s+(\d+)$")]
+        public int Add([FromRegexIndex(1), ConvertFromString(typeof(ToIntComponents))] int a, [FromRegexIndex(2), ConvertFromString(typeof(ToIntComponents))] int b)
+        {
+            return a + b;
+        }
+
+        /// <summary>
+        /// Subtracts the second number from the first.
+        /// Example: SUB 10 5
+        /// </summary>
+        [RegexUse(@"^SUB\s+(\d+)\s+(\d+)$")]
+        public int Subtract([FromRegexIndex(1), ConvertFromString(typeof(ToIntComponents))] int a, [FromRegexIndex(2), ConvertFromString(typeof(ToIntComponents)),] int b)
+        {
+            return a - b;
+        }
+
+        /// <summary>
+        /// Multiplies two numbers.
+        /// Example: MUL 10 5
+        /// </summary>
+        [RegexUse(@"^MUL\s+(\d+)\s+(\d+)$")]
+        public int Multiply([FromRegexIndex(1), ConvertFromString(typeof(ToIntComponents))] int a, [FromRegexIndex(2), ConvertFromString(typeof(ToIntComponents))] int b)
+        {
+            return a * b;
+        }
+
+        /// <summary>
+        /// Divides the first number by the second.
+        /// Example: DIV 10 5
+        /// </summary>
+        [RegexUse(@"^DIV\s+(\d+)\s+(\d+)$")]
+        public double Divide([FromRegexIndex(1), ConvertFromString(typeof(ToIntComponents))] int a, [FromRegexIndex(2), ConvertFromString(typeof(ToIntComponents))] int b)
+        {
+            if (b == 0)
+            {
+                throw new Exception("Math Error: Division by zero is not allowed.");
+            }
+
+            return (double)a / b;
+        }
+    }
+}
+
+
+// ===== FILE: InterpreterCore.cs =====
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Text.RegularExpressions;
+using DIL.Middlewares;
+using DIL.Attributes;
+using DIL.Interfaces;
+
+namespace DIL.Core
+{
+    /// <summary>
+    /// The core dynamic interpreter that processes input, executes commands, and provides detailed error reporting.
+    /// </summary>
+    public class InterpreterCore
+    {
+        private readonly List<IMiddleware> _middlewares = new();
+        private readonly Dictionary<string, Type> _registeredComponents = new();
+        private int excute_line = 0;
+
+        /// <summary>
+        /// Registers a middleware to the interpreter pipeline.
+        /// </summary>
+        /// <param name="middleware">The middleware to add.</param>
+        public void AddMiddleware(IMiddleware middleware)
+        {
+            if (_middlewares.Contains(middleware))
+                return;
+            _middlewares.Add(middleware);
+        }
+
+        /// <summary>
+        /// Registers a class or component with the interpreter for dynamic execution.
+        /// </summary>
+        /// <param name="componentType">The type of the component to register.</param>
+        public void RegisterComponent(Type componentType)
+        {
+            if (componentType == null)
+                throw new ArgumentNullException(nameof(componentType));
+
+            var alias = componentType.GetCustomAttribute<AutoInterpretAttribute>()?.Alias ?? componentType.Name;
+            _registeredComponents[alias] = componentType;
+        }
+
+        public InterpreterCore()
+        {
+            AddMiddleware(new RemoveCommentsMiddleware());
+            AddMiddleware(new FlattenMultilineMiddleware());
+            AddMiddleware(new TrimWhitespaceMiddleware());
+        }
+
+        private List<string> lines = new List<string>();
+
+        /// <summary>
+        /// Processes and executes the given input dynamically.
+        /// </summary>
+        /// <param name="input">The raw input code to execute.</param>
+        /// <returns>The result of the execution.</returns>
+        public object? Execute(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+                return null;
+
+            // Step 1: Run input through the middleware pipeline
+            string processedInput = RunMiddleware(input);
+
+            // We use a single-line regex pattern that splits on either ';' or 'end' (in various cases),
+            // but not within strings. The pattern uses lookbehind to split lines whenever we encounter
+            // a start-of-line or one of our delimiters (e.g., ';', 'end', 'End', 'END'), outside of quotes.
+            // We do not consider ';' or 'end' inside quotes as delimiters.
+            //
+            // The pattern explanation:
+            // (?<=^|;|end|End|END) means we look behind for start, a semicolon, or 'end' variants.
+            // ([^";]*(" [^"]* ")?[^";]*) is a rough pattern that captures a segment potentially containing a quoted string.
+            //
+            // This ensures we split on ';' or 'end' but not inside strings.
+            string pattern = @"(?<=^|;|end|End|END|:)([^"";]*(""(?:[^""]*)""[^"";]*)*)";
+
+            var matches = Regex.Matches(processedInput, pattern, RegexOptions.IgnoreCase);
+
+            foreach (Match match in matches)
+            {
+                string value = match.Value.Trim();
+                if (!string.IsNullOrEmpty(value))
+                {
+                    lines.Add(value);
+                }
+            }
+
+            // Execute each line one by one
+            for (; excute_line < lines.Count; excute_line++)
+            {
+                try
+                {
+                    ExecuteLine(lines[excute_line].Trim());
+                }
+                catch (Exception ex)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    DisplayCodeWithError($"{lines[excute_line]} : {ex.InnerException?.Message ?? ex.Message} in line {excute_line + 1}", 1, lines[excute_line].Length - 1);
+                    Console.ResetColor();
+                    unsafe
+                    {
+                        Environment.Exit(-1);
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        static void DisplayCodeWithError(string code, int startPosition, int errorLength)
+        {
+            // Print the code
+            Console.WriteLine(code);
+
+            // Create underline with ^ characters
+            string underline = new string(' ', startPosition) + new string('^', errorLength);
+
+            // Print the underline in red
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine(underline);
+            Console.ResetColor();
+        }
+
+        /// <summary>
+        /// Executes a single line of input dynamically.
+        /// Here we find all methods that match and choose the "best" one.
+        /// "Best" is defined as the match that has the longest match length or is most specific.
+        /// </summary>
+        /// <param name="line">The line of input to execute.</param>
+        private void ExecuteLine(string line)
+        {
+            if (string.IsNullOrEmpty(line))
+                return;
+
+            // Collect all matches from all methods
+            List<(MethodInfo method, Type componentType, Match match, string pattern)> potentialMatches = new();
+
+            foreach (var component in _registeredComponents)
+            {
+                var methods = component.Value.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
+                foreach (var method in methods)
+                {
+                    var regexAttribute = method.GetCustomAttribute<RegexUseAttribute>();
+                    var full_i = method.GetCustomAttribute<RegexUseFullInstructionAttribute>();
+                    if (regexAttribute != null)
+                    {
+                        string target = full_i != null ? string.Join("\n", lines.Skip(excute_line)) : line;
+                        var match = Regex.Match(target, regexAttribute.Pattern);
+                        if (match.Success)
+                        {
+                            // Store this match for later selection.
+                            potentialMatches.Add((method, component.Value, match, regexAttribute.Pattern));
+                        }
+                    }
+                }
+            }
+
+            if (!potentialMatches.Any())
+            {
+                // No full matches found. Let's find the best partial match and where it stops.
+                (string pattern, int partialMatchLength) = FindBestPartialMatch(line);
+
+                if (partialMatchLength > 0 && partialMatchLength < line.Length)
+                {
+                    // Partial match found. Show from the exact character where we fail.
+                    // For example, if `class User` matched and the line is `class User<T>:something`,
+                    // partialMatchLength would be the length of `class User`. We'll print:
+                    // "class User Invalid token "<T>:something""
+                    string matchedPart = line.Substring(0, partialMatchLength);
+                    string invalidPart = line.Substring(partialMatchLength);
+
+                    throw new Exception($"{matchedPart} Invalid token \"{invalidPart}\"");
+                }
+                else
+                {
+                    // No partial match or it's the full line but still invalid.
+                    throw new Exception($"Invalid token: \"{line}\"");
+                }
+            }
+
+            // Pick the best match by longest matched value
+            var best = potentialMatches
+                .Select(m =>
+                {
+                    int namedGroups = m.match.Groups.Cast<Group>().Count(g => g.Name != "0" && m.match.Groups[g.Name].Success);
+                    int wildcards = Regex.Matches(m.pattern, @"\.\*|\.\+").Count;
+                    int patternLength = m.pattern.Length;
+                    int matchLength = m.match.Value.Length;
+
+                    int score = namedGroups * 1000 - wildcards * 500 + matchLength * 2 + patternLength;
+
+                    return (score, m);
+                })
+                .OrderByDescending(x => x.score)
+                .First()
+                .m;
+            ExecuteMethod(best.componentType, best.method, best.match.Value, best.pattern);
+        }
+
+
+        private (string pattern, int matchLength) FindBestPartialMatch(string line)
+        {
+            int bestLength = 0;
+            string bestPattern = string.Empty;
+
+            // Gather all patterns
+            List<string> allPatterns = new List<string>();
+            foreach (var component in _registeredComponents)
+            {
+                var methods = component.Value.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
+                foreach (var method in methods)
+                {
+                    var regexAttribute = method.GetCustomAttribute<RegexUseAttribute>();
+                    if (regexAttribute != null)
+                    {
+                        allPatterns.Add(regexAttribute.Pattern);
+                    }
+                }
+            }
+
+            // For each pattern, we try to find the longest prefix of `line` that matches fully.
+            // We check progressive substrings from the start.
+            foreach (var pattern in allPatterns.Distinct())
+            {
+                int currentLongest = 0;
+                for (int length = 1; length <= line.Length; length++)
+                {
+                    string substring = line.Substring(0, length);
+
+                    // We want to see if 'substring' fully matches the pattern from start to end.
+                    // So we anchor the pattern at the start and end (^ and $).
+                    // If it matches, we update currentLongest.
+                    if (Regex.IsMatch(substring, "^" + pattern + "$"))
+                    {
+                        currentLongest = length;
+                    }
+                    else
+                    {
+                        // Once it fails for a given length, longer lengths won't match either,
+                        // because we're always starting from the beginning of `line`.
+                        break;
+                    }
+                }
+
+                if (currentLongest > bestLength)
+                {
+                    bestLength = currentLongest;
+                    bestPattern = pattern;
+                }
+            }
+
+            return (bestPattern, bestLength);
+        }
+
+        /// <summary>
+        /// Executes a method dynamically based on the provided regex match.
+        /// </summary>
+        internal object? ExecuteMethod(Type componentType, MethodInfo method, string input, string pattern)
+        {
+            var match = Regex.Match(input, pattern);
+            if (!match.Success)
+                throw new Exception($"Syntax error: \"{input}\" does not match the expected pattern \"{pattern}\"");
+
+            var parameters = method.GetParameters();
+            var args = new object?[parameters.Length];
+            int excute_line_jump = 0;
+            bool is_jump_set = false;
+
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                var fromRegexIndexAttribute = parameters[i].GetCustomAttribute<FromRegexIndexAttribute>();
+                if (fromRegexIndexAttribute != null)
+                {
+                    if (parameters[i].GetCustomAttribute<ConvertFromStringAttribute>() is ConvertFromStringAttribute cv)
+                    {
+                        args[i] = cv.IBindConvert.Convert(match.Groups[fromRegexIndexAttribute.Index].Value);
+                        continue;
+                    }
+
+                    args[i] = match.Groups[fromRegexIndexAttribute.Index].Value;
+                    continue;
+                }
+                if (parameters[i].GetCustomAttribute<CoreUpdateLineByAttribute>() is not null && parameters[i].IsOut && !is_jump_set)
+                {
+                    is_jump_set = true;
+                    excute_line_jump = i;
+                    continue;
+                }
+                if (parameters[i].GetCustomAttribute<CorePassCurrentLine_IndexAttribute>() is not null && parameters[i].ParameterType == typeof(int))
+                {
+                    args[i] = excute_line;
+                    continue;
+                }
+                if (parameters[i].GetCustomAttribute<CorePassLinesAttribute>() is not null && parameters[i].ParameterType == typeof(string[]))
+                {
+                    args[i] = lines.ToArray();
+                    continue;
+                }
+                else
+                {
+                    args[i] = null; // Default value for optional parameters.
+                }
+            }
+
+            var instance = Activator.CreateInstance(componentType);
+            var result = method.Invoke(instance, args);
+            if(args.Count() is not 0)
+                excute_line += args[excute_line_jump]is int v?v:0;
+            return result;
+        }
+
+        /// <summary>
+        /// Runs the input through the middleware pipeline.
+        /// </summary>
+        /// <param name="input">The raw input code.</param>
+        /// <returns>The processed input.</returns>
+        private string RunMiddleware(string input)
+        {
+            string result = input;
+            foreach (var middleware in _middlewares)
+            {
+                result = middleware.Process(result);
+            }
+            return result;
+        }
+    }
+}
+
+
+// ===== FILE: IAutoInterpret.cs =====
+namespace DIL.Interfaces
+{
+    /// <summary>
+    /// Interface for classes that can be interpreted.
+    /// </summary>
+    public interface IAutoInterpret
+    {
+        /// <summary>
+        /// Provides a dynamic execution context.
+        /// </summary>
+        /// <param name="methodName">The name of the method to execute.</param>
+        /// <param name="parameters">The parameters to pass to the method.</param>
+        /// <returns>The result of the execution.</returns>
+        object? InvokeMethod(string methodName, params object[] parameters);
+
+        /// <summary>
+        /// Gets or sets a property dynamically.
+        /// </summary>
+        /// <param name="propertyName">The name of the property.</param>
+        /// <param name="value">The value to set (optional).</param>
+        /// <returns>The property value if getting; otherwise, null.</returns>
+        object? InvokeProperty(string propertyName, object? value = null);
+    }
+}
+
+
+// ===== FILE: IBindConvert.cs =====
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace DIL.Interfaces
+{
+    public interface IBindConvert
+    {
+        dynamic? Convert(dynamic? value);
+        public IBindConvert IBind =>this;
+    }
+}
+
+
+// ===== FILE: IExternalCallable.cs =====
+namespace DIL.Interfaces
+{
+    /// <summary>
+    /// Interface for classes that can handle external calls.
+    /// </summary>
+    public interface IExternalCallable
+    {
+        /// <summary>
+        /// Calls an external method dynamically.
+        /// </summary>
+        /// <param name="methodName">The name of the method to call.</param>
+        /// <param name="parameters">The parameters to pass to the method.</param>
+        /// <returns>The result of the call.</returns>
+        object? CallExternal(string methodName, params object[] parameters);
+    }
+}
+
+
+// ===== FILE: IIMiddleware.cs =====
+namespace DIL.Interfaces
+{
+    /// <summary>
+    /// Interface for all middleware classes.
+    /// </summary>
+    public interface IMiddleware
+    {
+        /// <summary>
+        /// Processes the input and returns the processed output.
+        /// </summary>
+        /// <param name="input">The input to process.</param>
+        /// <returns>The processed output.</returns>
+        string Process(string input);
+    }
+}
+
+
+// ===== FILE: IInterpreterComponent.cs =====
+using System;
+using System.Collections.Generic;
+
+namespace DIL.Interfaces
+{
+    /// <summary>
+    /// Base interface for all interpreter components.
+    /// </summary>
+    public interface IInterpreterComponent
+    {
+        /// <summary>
+        /// Executes the component dynamically.
+        /// </summary>
+        /// <param name="parameters">Parameters to pass to the component.</param>
+        /// <returns>The result of the execution.</returns>
+        object? Execute(params object[] parameters);
+    }
+}
+
+
+// ===== FILE: IRegexCallable.cs =====
+namespace DIL.Interfaces
+{
+    /// <summary>
+    /// Interface for classes that handle regex-based calls.
+    /// </summary>
+    public interface IRegexCallable
+    {
+        /// <summary>
+        /// Matches a method to a regex pattern and executes it.
+        /// </summary>
+        /// <param name="regexPattern">The regex pattern to match.</param>
+        /// <param name="parameters">The parameters to pass to the method.</param>
+        /// <returns>The result of the execution.</returns>
+        object? CallByRegex(string regexPattern, params object[] parameters);
+    }
+}
+
+
+// ===== FILE: IRuntimeContext.cs =====
+namespace DIL.Interfaces
+{
+    /// <summary>
+    /// Interface for a dynamic interpreter runtime context.
+    /// </summary>
+    public interface IRuntimeContext
+    {
+        /// <summary>
+        /// Registers a class or method with the runtime context.
+        /// </summary>
+        /// <param name="component">The component to register.</param>
+        void RegisterComponent(IInterpreterComponent component);
+
+        /// <summary>
+        /// Executes a command in the runtime context.
+        /// </summary>
+        /// <param name="command">The command to execute.</param>
+        /// <param name="parameters">The parameters to pass to the command.</param>
+        /// <returns>The result of the execution.</returns>
+        object? ExecuteCommand(string command, params object[] parameters);
+    }
+}
+
+
+// ===== FILE: CommentsRemove.cs =====
+using DIL.Interfaces;
+using System.Text.RegularExpressions;
+
+namespace DIL.Middlewares
+{
+    public class RemoveCommentsMiddleware : IMiddleware
+    {
+        public string Process(string input)
+        {
+            // Remove single-line comments (// ...)
+            string withoutSingleLineComments = Regex.Replace(input, @"//.*?$", "", RegexOptions.Multiline);
+
+            // Remove multi-line comments (/* ... */)
+            string withoutMultiLineComments = Regex.Replace(withoutSingleLineComments, @"/\*.*?\*/", "", RegexOptions.Singleline);
+
+            // Remove line-ending comments (;;)
+            string withoutLineEndingComments = Regex.Replace(withoutMultiLineComments, @";;.*?$", "", RegexOptions.Multiline);
+
+            return withoutLineEndingComments.Trim();
+        }
+    }
+}
+
+
+// ===== FILE: FlattenMultilineMiddleware.cs =====
+using DIL.Interfaces;
+using System.Text.RegularExpressions;
+
+namespace DIL.Middlewares
+{
+    /// <summary>
+    /// Middleware to flatten multiline statements into a single logical line.
+    /// For example:
+    /// LET a = 
+    /// 30;
+    /// becomes:
+    /// LET a = 30;
+    /// </summary>
+    public class FlattenMultilineMiddleware : IMiddleware
+    {
+        public string Process(string input)
+        {
+            // Use regex to detect and merge lines that are part of the same statement.
+            string pattern = @"(?<statement>[^;]+)\n\s+(?<continuation>[^;]+);";
+            string result = Regex.Replace(input, pattern, "${statement} ${continuation};");
+
+            return result;
+        }
+    }
+}
+
+
+// ===== FILE: MiddleWareCore.cs =====
+using DIL.Interfaces;
+using System;
+using System.Collections.Generic;
+
+namespace DIL.Middlewares
+{
+    /// <summary>
+    /// The core middleware processor that manages the execution of middleware classes.
+    /// </summary>
+    public class MiddlewareCore
+    {
+        private readonly List<IMiddleware> _middlewares = new();
+
+        /// <summary>
+        /// Adds a middleware to the processing pipeline.
+        /// </summary>
+        /// <param name="middleware">The middleware to add.</param>
+        public void AddMiddleware(IMiddleware middleware)
+        {
+            _middlewares.Add(middleware);
+        }
+
+        /// <summary>
+        /// Processes the input through the middleware pipeline.
+        /// </summary>
+        /// <param name="input">The input to process.</param>
+        /// <returns>The processed output.</returns>
+        public string Process(string input)
+        {
+            string result = input;
+
+            foreach (var middleware in _middlewares)
+            {
+                result = middleware.Process(result);
+            }
+
+            return result;
+        }
+    }
+}
+
+
+// ===== FILE: TrimWhitespaceMiddleware.cs =====
+using DIL.Interfaces;
+using System.Text.RegularExpressions;
+
+namespace DIL.Middlewares
+{
+    /// <summary>
+    /// Middleware to trim excessive whitespace from the input.
+    /// </summary>
+    public class TrimWhitespaceMiddleware : IMiddleware
+    {
+        public string Process(string input)
+        {
+            // Replace multiple spaces with a single space
+            return Regex.Replace(input, @"\s+", " ").Trim();
+        }
+    }
+}
+
+// ===== FILE: ClassComponent.cs =====
+using System;
+using System.Linq;
+using System.Text.RegularExpressions;
+using DIL.Attributes;
+using DIL.Components.ValueComponent;
+using DIL.Core;
+
+namespace DIL.Components.ClassComponents
+{
+    /// <summary>
+    /// Handles dynamic class definitions, instantiation, and member access.
+    /// </summary>
+    [AutoInterpret(Alias: "CLASS")]
+    public class ClassComponent
+    {
+        /// <summary>
+        /// Starts defining a new class. Dynamically calculates lines to skip.
+        /// 
+        //        class Pet :
+        //            userid:23;
+        //	            userid2:1;
+        //      class: end;
+
+        //        let myPet = Pet:new;
+        //          let myPet1 = myPet as class;
+        //        GET myPet1->userid;
+
+        /// </summary>
+        [RegexUse(@"^class\s*(\w+)\s*:\s*(.*)$")]
+        public void StartClassDefinition(
+            [FromRegexIndex(1)] string className,
+            [FromRegexIndex(2)] string _top_regex,
+            [CorePassCurrentLine_IndexAttribute] int line,
+            [CorePassLinesAttribute] string[] line_,
+            [CoreUpdateLineBy] out int jump_by)
+        {
+
+            // Dynamically calculate how many lines to skip (until `class:end`).
+            var currentLineIndex = line;
+            var lines = line_;
+            int skipLines = 0;
+            List<string> bodys = new();
+            bodys.Add(_top_regex);
+            for (int i = currentLineIndex + 1; i < lines.Length; i++)
+            {
+
+                if (Regex.IsMatch(lines[i], @"^class:\s*end$"))
+                {
+                    skipLines = i - currentLineIndex;
+                    break;
+                }
+                else
+                {
+                    bodys.Add(lines[i]);
+                }
+            }
+
+            if (skipLines == 0)
+                throw new Exception($"Missing 'class:end' for class '{className}' starting at line {currentLineIndex}.");
+            var classDefinition = new ClassDefinition(className, bodys);
+            ClassDefinitionManager.RegisterClass(className, classDefinition);
+
+            jump_by = skipLines;
+        }
+
+        /// <summary>
+        /// Ends the class definition. Confirms that processing stops here.
+        /// class :end;
+        /// </summary>
+        [RegexUse(@"^class:\s*end$"), RegexUseFullInstruction]
+        public void EndClassDefinition([CoreUpdateLineBy] out int jump_by)
+        {
+            Console.WriteLine("Class definition ended.");
+            jump_by = 1; // Skip the `class:end` line.
+        }
+
+        /// <summary>
+        /// Creates an instance of a defined class.
+        /// let class1=Class1:new;
+        /// </summary>
+        [RegexUse(@"^let\s+(\w+)\s*=\s*(\w+):new$")]
+        public void CreateInstance(
+            [FromRegexIndex(1)] string instanceName,
+            [FromRegexIndex(2)] string className)
+        {
+            var classDefinition = ClassDefinitionManager.GetClass(className);
+            var instance = new ClassInstance(classDefinition);
+            LetValueStore.Set(instanceName, instance);
+
+
+        }
+        /// <summary>
+        /// Edit an instance of a defined class.
+        ///  class1=Class1:new;
+        /// </summary>
+        [RegexUse(@"^\s*(\w+)\s*=\s*(\w+):new$")]
+        public void newInstance(
+            [FromRegexIndex(1)] string instanceName,
+            [FromRegexIndex(2)] string className)
+        {
+            var classDefinition = ClassDefinitionManager.GetClass(className);
+            var instance = new ClassInstance(classDefinition);
+            LetValueStore.NewSet(instanceName, instance);
+
+
+        }
+        private static GetComponent _getComponent = new GetComponent();
+        /// <summary>
+        /// Retrieves a property of a class instance.
+        /// Get Class1->Name
+        /// </summary>
+        [RegexUse(@"^(?:Get)\s+(\w+)(?:->(\w+.*))?$")]
+        public object? GetInstanceProperty(
+            [FromRegexIndex(1)] string instanceName,
+            [FromRegexIndex(2)] string propertyName)
+        {
+            try
+            {
+                var instance = LetValueStore.Get(instanceName) as ClassInstance;
+                if (instance == null)
+                {
+                    return _getComponent.GetVariable(instanceName + "->" + propertyName);
+                }
+
+                var result = !string.IsNullOrWhiteSpace(propertyName) ? instance.GetProperty(propertyName) : instance;
+                Console.WriteLine(result);
+
+                return result;
+            }catch(IndexOutOfRangeException) { throw; }
+            catch
+            {
+                if (propertyName is not "" or null)
+                    return _getComponent.GetVariable(instanceName + "->" + propertyName); 
+                var result =ClassDefinitionManager.GetClass(/*classname*/instanceName);
+                
+                return result;
+            }
+        }
+
+        /// <summary>
+        /// Calls a method of a class instance.
+        /// </summary>
+        [RegexUse(@"^CALL\s+(\w+)->(\w+)\((.*)\)$")]
+        public object? CallInstanceMethod(
+            [FromRegexIndex(1)] string instanceName,
+            [FromRegexIndex(2)] string methodName,
+            [FromRegexIndex(3)] string args)
+        {
+            var instance = LetValueStore.Get(instanceName) as ClassInstance;
+            if (instance == null)
+                throw new Exception($"Instance '{instanceName}' does not exist or is not a class instance.");
+
+            var parsedArgs = ParseArguments(args);
+            return instance.CallMethod(methodName, parsedArgs);
+        }
+
+        /// <summary>
+        /// Parses arguments for method calls.
+        /// </summary>
+        private object[] ParseArguments(string args)
+        {
+            if (string.IsNullOrWhiteSpace(args)) return Array.Empty<object>();
+            var argList = args.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            var parsedArgs = new object[argList.Length];
+            for (int i = 0; i < argList.Length; i++)
+            {
+                parsedArgs[i] = LetParser.Parse(argList[i].Trim());
+            }
+            return parsedArgs;
+        }
+    }
+}
+
+
+// ===== FILE: ClassDefinitionManager.cs =====
+using DIL.Components.ValueComponent.Tokens;
+using DIL.Components.ValueComponent;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Text.RegularExpressions;
+using System.Reflection.Metadata;
+
+namespace DIL.Components.ClassComponents
+{
+    /// <summary>
+    /// Manages class definitions and instances.
+    /// </summary>
+    public static class ClassDefinitionManager
+    {
+        private static readonly Dictionary<string, ClassDefinition> ClassRegistry = new();
+
+        /// <summary>
+        /// Registers a new class definition.
+        /// </summary>
+        public static void RegisterClass(string className, ClassDefinition classDefinition)
+        {
+            if (ClassRegistry.ContainsKey(className))
+                throw new Exception($"Class '{className}' is already defined.");
+            ClassRegistry[className] = classDefinition;
+        }
+
+        /// <summary>
+        /// Retrieves a class definition by name.
+        /// </summary>
+        public static ClassDefinition GetClass(string className)
+        {
+            if (!ClassRegistry.TryGetValue(className, out var classDefinition))
+                throw new Exception($"Class '{className}' is not defined.");
+            return classDefinition;
+        }
+
+        /// <summary>
+        /// Checks if a class is defined.
+        /// </summary>
+        public static bool IsClassDefined(string className)
+        {
+            return ClassRegistry.ContainsKey(className);
+        }
+    }
+
+    /// <summary>
+    /// Represents a class definition.
+    /// </summary>
+    public class ClassDefinition
+    {
+        public enum ParameterType
+        {
+            DirectValue,
+            Class,
+            Object,
+            Arrary,
+            Map,
+            String,
+            Int
+        } 
+        public record Parameter(string ParameterName,ParameterType ParameterType);
+        public record FuncDefinition
+        {
+            public int ParameterCount { get; set; }
+            public string Name { get; set; }
+            public Parameter[] Parameters { get; set; }
+            public string Body {  get; set; }
+
+        }
+        public string Name { get; }
+        public Dictionary<string, object?> Fields { get; private set; } = new();
+        public Dictionary<string, Func<object[], object?>> Methods { get; private set; } = new();
+        public ClassDefinition(string name,List<string> bodys)
+        {
+            Name = name;
+            LoadDefaultClassInfo();
+            BuildFields(bodys);
+        }
+        private void LoadDefaultClassInfo()
+        {
+            Fields.Add("Type",Name);
+        }
+        public void BuildFields(List<string> str_fields)
+        {
+            bool forces_set=false;
+            foreach (var field in str_fields)
+            {
+                var FieldMatch = Regex.Match(field, @"^(\w+[\W\d\S]*)\s*\:\s*(.*?)\s*(?:\s+as\s+(.+))?(?:\s*\$(overwrite)\$\s*)?$");
+                if (FieldMatch.Success)
+                {
+                    //Type : name $overwrite$
+                    if (Fields.ContainsKey(FieldMatch.Groups[1].Value) && FieldMatch.Groups[4].Value!="overwrite")
+                    {
+                        throw new DuplicateNameException($"DuplicateNameException in {FieldMatch.Value}. use $overwrite$ to overwrite the value.");
+                    }
+                    if (FieldMatch.Groups[4].Value == "overwrite")
+                        forces_set = true;
+                    if (Fields.TryGetValue(FieldMatch.Groups[2].Value,out object? value))
+                        AddProperty(FieldMatch.Groups[1].Value, value, forces_set);
+                    else
+                    {
+                        
+                        // Parse the value and apply the optional type
+                        object result = default;
+                        if (FieldMatch.Groups[2].Value.StartsWith('[') && FieldMatch.Groups[2].Value.EndsWith(']'))
+                        {
+                            string arrayContent = FieldMatch.Groups[2].Value;
+                            string pattern = @"\[([^,\]]+|""[^""]*"")(?:,|\])?";
+                            var matches = Regex.Matches(arrayContent, pattern);
+
+                            // Parse each item in the array
+                            var parsedItems = new List<string>();
+                            foreach (Match match in matches)
+                            {
+                                string value_ = match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value;
+                                InlineEvaluate inline = new InlineEvaluate(value_);
+                                parsedItems.Add(inline.Parse().ToString()!);
+                            }
+
+                            // Combine the parsed results back into the result variable
+                            result = $"[{string.Join(",", parsedItems)}]";
+                            result = LetParser.Parse((string)result, "array");
+                        }
+                        else if (FieldMatch.Groups[3].Value is "class")
+                        {
+                            //throws error if class IsNotdefined
+                            var classDefinition = ClassDefinitionManager.GetClass(FieldMatch.Groups[2].Value);
+                            result = classDefinition;
+                        }
+                        else
+                        {
+                            if (FieldMatch.Groups[3].Value is not "map")
+                            {
+                                InlineEvaluate inline = new InlineEvaluate(FieldMatch.Groups[2].Value);
+                                result = inline.Parse(true);
+                                if (result is not ClassDefinition or ClassInstance)
+                                {
+                                    result = LetParser.Parse(result.ToString()!, string.IsNullOrEmpty(FieldMatch.Groups[3].Value) ? "object" : FieldMatch.Groups[3].Value);
+                                }
+                            }
+                            else
+                            {
+                                result = LetParser.Parse(FieldMatch.Groups[2].Value, string.IsNullOrEmpty(FieldMatch.Groups[3].Value) ? "object" : FieldMatch.Groups[3].Value);
+                            }
+                        }
+                        
+
+                        AddProperty(FieldMatch.Groups[1].Value.Trim(),result, forces_set);
+                    }
+                }
+            }
+        
+        }
+
+        public void AddProperty(string propertyName, object? defaultValue = null,bool force_set = false)
+        {
+            if (Fields.ContainsKey(propertyName)&&!force_set)
+                throw new Exception($"Property '{propertyName}' is already defined in class '{Name}'.");
+            Fields[propertyName] = defaultValue;
+        }
+
+        public void AddMethod(string methodName, Func<object[], object?> method)
+        {
+            if (Methods.ContainsKey(methodName))
+                throw new Exception($"Method '{methodName}' is already defined in class '{Name}'.");
+            Methods[methodName] = method;
+        }
+    }
+}
+
+
+// ===== FILE: ClassInstance.cs =====
+using System;
+using System.Collections.Generic;
+
+namespace DIL.Components.ClassComponents
+{
+    /// <summary>
+    /// Manages class instances dynamically.
+    /// </summary>
+    public class ClassInstance
+    {
+        private readonly ClassDefinition _classDefinition;
+        private readonly Dictionary<string, object?> _instanceProperties;
+
+        public ClassInstance(ClassDefinition classDefinition)
+        {
+            _classDefinition = classDefinition;
+            _instanceProperties = new Dictionary<string, object?>(classDefinition.Fields);
+        }
+
+        //public object? GetProperty(string propertyName)
+        //{
+        //    var properies = propertyName.Split("->")??[""];
+        //    if (!_instanceProperties.TryGetValue(properies[0], out var value))
+        //        throw new Exception($"Property '{propertyName}' does not exist in instance of class '{_classDefinition.Name}'.");
+        //    var inst= value;
+        //    foreach (var prop in properies.Skip(1))
+        //    {
+        //        if(inst is Dictionary<string, object?> dic)
+        //        {
+        //            if (!dic.TryGetValue(prop, out var result))
+        //                throw new Exception($"Property '{propertyName}' does not exist in instance of class '{_classDefinition.Name}'.");
+        //             inst = result;
+        //        }
+        //        else if (inst is ClassDefinition classDefinition)
+        //        {
+        //            if (!classDefinition.Fields.TryGetValue(prop, out var result))
+        //                throw new Exception($"Property '{propertyName}' does not exist in instance of class '{_classDefinition.Name}'.");
+        //            inst = result;
+        //        }
+        //        else
+        //        {
+        //            inst = prop.GetType().GetProperty(propertyName)??throw new NotImplementedException($"object '{prop}' is not implemented in {propertyName[0]}");
+        //        }
+        //    }
+        //    return inst;
+        //}
+        public object? GetProperty(string propertyName)
+        {
+            var properties = propertyName.Split("->") ?? Array.Empty<string>();
+
+            object? inst;
+
+            // Handle cases where the first property includes indexing, e.g., "Key[1]"
+            int bracketIndex = properties[0].IndexOf('[');
+            if (bracketIndex != -1)
+            {
+                // Extract base property name and indexes
+                string basePropName = properties[0].Substring(0, bracketIndex).Trim();
+                var indexes = ExtractIndexes(properties[0], bracketIndex);
+
+                // Retrieve the base property from _instanceProperties
+                if (!_instanceProperties.TryGetValue(basePropName, out var baseValue))
+                    throw new Exception($"Property '{basePropName}' does not exist in instance of class '{_classDefinition.Name}'.");
+
+                // Apply indexes to the base property
+                inst = ApplyIndexes(baseValue, indexes, basePropName);
+            }
+            else
+            {
+                properties[0] = properties[0].Trim();
+                // Standard retrieval for non-indexed properties
+                if (!_instanceProperties.TryGetValue(properties[0], out var value))
+                    throw new Exception($"Property '{properties[0]}' does not exist in instance of class '{_classDefinition.Name}'.");
+
+                inst = value;
+            }
+
+            // Process remaining properties in the chain
+            foreach (var prop in properties.Skip(1))
+            {
+                int innerBracketIndex = prop.IndexOf('[');
+                if (innerBracketIndex != -1)
+                {
+                    // Handle property with indexing (e.g., Keys[2] or Keys[2][1])
+                    string basePropName = prop.Substring(0, innerBracketIndex).Trim();
+                    var indexes = ExtractIndexes(prop, innerBracketIndex);
+
+                    // Retrieve the base property first
+                    inst = GetBaseProperty(inst, basePropName, propertyName);
+
+                    // Apply indexes on the retrieved base property
+                    inst = ApplyIndexes(inst, indexes, basePropName);
+                }
+                else
+                {
+                    // Standard property retrieval
+                    inst = GetBaseProperty(inst, prop, propertyName);
+                }
+            }
+
+            return inst;
+        }
+
+        // Helper to extract indexes from the property string (e.g., Keys[2][1] -> [2, 1])
+        private List<int> ExtractIndexes(string prop, int startIndex)
+        {
+            var indexes = new List<int>();
+            int i = startIndex;
+
+            while (i < prop.Length)
+            {
+                int openBracket = prop.IndexOf('[', i);
+                if (openBracket == -1)
+                    break;
+
+                int closeBracket = prop.IndexOf(']', openBracket);
+                if (closeBracket == -1)
+                    throw new Exception($"Malformed index syntax in property '{prop}'.");
+
+                string indexStr = prop.Substring(openBracket + 1, closeBracket - openBracket - 1);
+                if (!int.TryParse(indexStr, out int index))
+                    throw new Exception($"Invalid index '{indexStr}' in property '{prop}'.");
+
+                indexes.Add(index);
+                i = closeBracket + 1;
+            }
+
+            return indexes;
+        }
+
+        // Helper to get the base property value
+        private object? GetBaseProperty(object? inst, string propName, string fullPropertyName)
+        {
+            if (inst is Dictionary<string, object?> dic)
+            {
+                if (!dic.TryGetValue(propName, out var result))
+                    throw new Exception($"Property '{propName}' does not exist in instance of class '{_classDefinition.Name}'.");
+                return result;
+            }
+            else if (inst is ClassDefinition classDefinition)
+            {
+                if (!classDefinition.Fields.TryGetValue(propName, out var result))
+                    throw new Exception($"Property '{propName}' does not exist in instance of class '{_classDefinition.Name}'.");
+                return result;
+            }
+            else
+            {
+                // Handle standard objects via reflection
+                var propertyInfo = inst.GetType().GetProperty(propName);
+                
+                if (propertyInfo == null)
+                    throw new Exception($"Property '{propName}' does not exist in instance of class '{_classDefinition.Name}'.");
+                return propertyInfo.GetValue(inst);
+            }
+        }
+
+        // Helper to apply indexes on a collection
+        private object? ApplyIndexes(object? inst, List<int> indexes, string propName)
+        {
+           
+            foreach (var index in indexes)
+            {
+                if (inst is System.Collections.IList list)
+                {
+                    if (index < 0 || index >= list.Count)
+                        throw new IndexOutOfRangeException($"Index '{index}' out of range for property '{propName}'.");
+                    inst = list[index];
+                }
+                else
+                {
+                    throw new Exception($"Property '{propName}' is not a list/array but was accessed with indexes.");
+                }
+            }
+
+            return inst;
+        }
+
+        public void SetProperty(string propertyName, object? value)
+        {
+            var properties = propertyName.Split("->") ?? Array.Empty<string>();
+            propertyName = propertyName.Trim();
+            // If there's no property name, just return
+            if (properties.Length == 0)
+                return;
+
+            object? inst = null;
+            object? parentInst = null;
+            string? currentPropName = null;
+            List<int>? currentIndexes = null;
+
+            // Handle the first property, which might have indexing
+            int bracketIndex = properties[0].IndexOf('[');
+            if (bracketIndex != -1)
+            {
+                // We have something like "PropName[0]"
+                string basePropName = properties[0].Substring(0, bracketIndex).TrimEnd();
+                var indexes = ExtractIndexes(properties[0], bracketIndex);
+
+                // Retrieve the base property from _instanceProperties
+                if (!_instanceProperties.TryGetValue(basePropName, out var baseValue))
+                    throw new Exception($"Property '{basePropName}' does not exist in instance of class '{_classDefinition.Name}'.");
+
+                // After getting the base property, we keep track of it and indexes
+                parentInst = _instanceProperties; // The parent is the root dictionary
+                inst = baseValue;
+                currentPropName = basePropName;
+                currentIndexes = indexes;
+            }
+            else
+            {
+                // Non-indexed top-level property
+                properties[0] = properties[0].Trim();
+                if (!_instanceProperties.TryGetValue(properties[0], out var baseValue))
+                    throw new Exception($"Property '{properties[0]}' does not exist in instance of class '{_classDefinition.Name}'.");
+
+                parentInst = _instanceProperties; // The parent is the root dictionary
+                inst = baseValue;
+                currentPropName = properties[0];
+                currentIndexes = null;
+            }
+
+            // Traverse the property chain
+            for (int i = 1; i < properties.Length; i++)
+            {
+                var prop = properties[i].Trim() ;
+                int innerBracketIndex = prop.IndexOf('[');
+
+                // Move down the chain, so the current inst becomes the parent
+                parentInst = inst;
+
+                if (innerBracketIndex != -1)
+                {
+                    string basePropName = prop.Substring(0, innerBracketIndex).Trim() ;
+                    var indexes = ExtractIndexes(prop, innerBracketIndex);
+
+                    // Retrieve the next property
+                    inst = GetBaseProperty(inst, basePropName, propertyName);
+
+                    currentPropName = basePropName;
+                    currentIndexes = indexes;
+                }
+                else
+                {
+                    // Non-indexed property in the chain
+                    inst = GetBaseProperty(inst, prop, propertyName);
+
+                    currentPropName = prop;
+                    currentIndexes = null;
+                }
+            }
+
+            // Now 'inst' should be the final property or the final collection in which we must set the value.
+            // 'parentInst' should be the object that holds the property we want to set.
+
+            // We must distinguish between setting a simple property and setting an indexed element in a collection.
+            if (currentIndexes != null && currentIndexes.Count > 0)
+            {
+                // We are setting an indexed value in a list/array
+                // Retrieve the parent property that holds the list
+                object? targetList = null;
+
+                // If parentInst is the root dictionary:
+                if (parentInst is Dictionary<string, object?> parentDict && currentPropName != null)
+                {
+                    if (!parentDict.TryGetValue(currentPropName, out targetList))
+                        throw new Exception($"Property '{currentPropName}' does not exist.");
+                }
+                else if (parentInst is ClassDefinition classDef && currentPropName != null)
+                {
+                    if (!classDef.Fields.TryGetValue(currentPropName, out targetList))
+                        throw new Exception($"Property '{currentPropName}' does not exist in instance of class '{_classDefinition.Name}'.");
+                }
+                else
+                {
+                    // Parent is a normal object, use reflection
+                    var propertyInfo = parentInst?.GetType().GetProperty(currentPropName!);
+                    if (propertyInfo == null)
+                        throw new Exception($"Property '{currentPropName}' does not exist in instance of class '{_classDefinition.Name}'.");
+                    targetList = propertyInfo.GetValue(parentInst);
+                }
+
+                // Traverse indexes until the last one, and set the value at that index
+                if (targetList is System.Collections.IList list)
+                {
+                    // If there's more than one index, navigate through them
+                    for (int i = 0; i < currentIndexes.Count - 1; i++)
+                    {
+                        int idx = currentIndexes[i];
+                        if (idx < 0 || idx >= list.Count)
+                            throw new IndexOutOfRangeException($"Index '{idx}' out of range for property '{currentPropName}'.");
+                        list = list[idx] as System.Collections.IList
+                            ?? throw new Exception($"Nested indexing found on a non-list element for '{currentPropName}'.");
+                    }
+
+                    int finalIndex = currentIndexes[^1];
+                    if (finalIndex < 0 || finalIndex >= list.Count)
+                        throw new IndexOutOfRangeException($"Index '{finalIndex}' out of range for property '{currentPropName}'.");
+
+                    list[finalIndex] = value;
+                }
+                else
+                {
+                    throw new Exception($"Property '{currentPropName}' is not a list/array but was accessed with indexes.");
+                }
+
+                // Update the parent property with the modified list if needed
+                if (parentInst is Dictionary<string, object?> dictParent && currentPropName != null)
+                {
+                    dictParent[currentPropName] = targetList;
+                }
+                else if (parentInst is ClassDefinition classParent && currentPropName != null)
+                {
+                    classParent.Fields[currentPropName] = targetList;
+                }
+                else if (parentInst != null && currentPropName != null)
+                {
+                    var propertyInfo = parentInst.GetType().GetProperty(currentPropName);
+                    if (propertyInfo != null && propertyInfo.CanWrite)
+                        propertyInfo.SetValue(parentInst, targetList);
+                }
+            }
+            else
+            {
+                // Setting a non-indexed property
+                if (parentInst is Dictionary<string, object?> dic && currentPropName != null)
+                {
+                    if (!dic.ContainsKey(currentPropName))
+                        throw new Exception($"Property '{currentPropName}' does not exist in instance of class '{_classDefinition.Name}'.");
+                    dic[currentPropName] = value;
+                }
+                else if (parentInst is ClassDefinition classDef && currentPropName != null)
+                {
+                    if (!classDef.Fields.ContainsKey(currentPropName))
+                        throw new Exception($"Property '{currentPropName}' does not exist in instance of class '{_classDefinition.Name}'.");
+                    classDef.Fields[currentPropName] = value;
+                }
+                else if (parentInst != null && currentPropName != null)
+                {
+                    var propertyInfo = parentInst.GetType().GetProperty(currentPropName);
+                    if (propertyInfo == null || !propertyInfo.CanWrite)
+                        throw new Exception($"Property '{currentPropName}' does not exist or cannot be written in instance of class '{_classDefinition.Name}'.");
+                    propertyInfo.SetValue(parentInst, value);
+                }
+                else
+                {
+                    throw new Exception($"Unable to set property '{propertyName}'.");
+                }
+            }
+        }
+
+
+        public object? CallMethod(string methodName, params object[] args)
+        {
+            if (!_classDefinition.Methods.TryGetValue(methodName, out var method))
+                throw new Exception($"Method '{methodName}' does not exist in class '{_classDefinition.Name}'.");
+            return method(args);
+        }
+    }
+}
+
+
+// ===== FILE: IfElseComponent.cs =====
+using System;
+using System.Collections.Generic;
+using DIL.Attributes;
+using DIL.Components.ValueComponent;
+
+namespace DIL.Components
+{
+    [AutoInterpret(Alias: "IF")]
+    public class IfElseComponent
+    {
+        private static Stack<bool> conditionStack = new();
+
+        /// <summary>
+        /// Handles the IF condition.
+        /// </summary>
+        [RegexUse(@"IF\s+(.+)\s*THEN\s*")]
+        public void IfStatement([FromRegexIndex(1)] string condition, [CorePassCurrentLine_IndexAttribute] int line, [CorePassLinesAttribute] string[] lines, [CoreUpdateLineBy] out int jump_by)
+        {
+            bool conditionResult = EvaluateCondition(condition);
+            conditionStack.Push(conditionResult);
+
+            if (!conditionResult)
+            {
+                // Find the matching ELSE or ENDIF
+                jump_by = FindJumpTarget(line, lines, "ELSE", "ENDIF")-1;
+            }
+            else
+            {
+                jump_by = 0; // Continue execution
+            }
+        }
+
+        /// <summary>
+        /// Handles ELSE statements.
+        /// </summary>
+        [RegexUse(@"ELSE")]
+        public void ElseStatement([CorePassCurrentLine_IndexAttribute] int line, [CorePassLinesAttribute] string[] lines, [CoreUpdateLineBy] out int jump_by)
+        {
+            if (conditionStack.Count == 0)
+                throw new Exception("ELSE without matching IF.");
+
+            bool lastCondition = conditionStack.Pop();
+            if (lastCondition)
+            {
+                jump_by = FindJumpTarget(line, lines, "ENDIF");
+            }
+            else
+            {
+                jump_by = 0; // Execute ELSE block
+            }
+        }
+
+        /// <summary>
+        /// Handles ENDIF.
+        /// </summary>
+        [RegexUse(@"^ENDIF$")]
+        public void EndIfStatement()
+        {
+            if (conditionStack.Count > 0)
+                conditionStack.Pop();
+        }
+
+        /// <summary>
+        /// Finds where to jump in case of a false condition.
+        /// </summary>
+        private int FindJumpTarget(int currentLine, string[] lines, params string[] targets)
+        {
+            for (int i = currentLine + 1; i < lines.Length; i++)
+            {
+                foreach (var target in targets)
+                {
+                    if (lines[i].Trim().StartsWith(target, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return i - currentLine;
+                    }
+                }
+            }
+            throw new Exception($"Missing expected statement ({string.Join(" or ", targets)}) after line {currentLine}.");
+        }
+
+        /// <summary>
+        /// Evaluates a condition dynamically.
+        /// </summary>
+        private bool EvaluateCondition(string condition)
+        {
+            object result = null;
+            return (result = LetParser.Parse(condition)) is bool boolean?boolean:throw new InvalidDataException($"Unable to Evaluate {result} to boolean") ;
+            
+        }
+    }
+}
+
+
+// ===== FILE: For.cs =====
+using DIL.Attributes;
+using DIL.Components.ValueComponent;
+using DIL.Components.ValueComponent.Tokens;
+
+namespace DIL.Components.ForLoop
+{
+    /// <summary>
+    /// Handles the start of a FOR loop with expression-based evaluation.
+    /// Supports inline loop body using either <c>DO</c> or <c>=&gt;</c> syntax,
+    /// or traditional multi-line blocks ending in <c>ENDFOR</c>.
+    /// 
+    /// Examples:
+    /// <code>
+    /// FOR n IN n << 20 DO n = n + 2;
+    /// FOR n IN n << 20 => n = n + 2;
+    /// FOR n IN n << 20 DO;
+    /// FOR n IN n << 20 DO
+    ///     PRINT n;
+    ///     n = n + 1;
+    /// ENDFOR;
+    /// </code>
+    /// 
+    /// Behavior:
+    /// - The <paramref name="variableName"/> is automatically initialized to 0 if not defined.
+    /// - The <paramref name="valueExpression"/> must evaluate to a boolean.
+    /// - If the result is false, the loop is skipped.
+    /// - If inline statements are present, they are executed immediately after condition check.
+    /// </summary>
+    /// <param name="variableName">The loop variable identifier (e.g., 'n').</param>
+    /// <param name="valueExpression">The expression to evaluate (must return boolean).</param>
+    /// <param name="inlineStatements">Optional inline body code following DO or =>.</param>
+    /// <param name="line">The current line index.</param>
+    /// <param name="lines">All lines of script source.</param>
+    /// <param name="jump_by">Set to number of lines to skip if condition fails.</param>
+    ///</summary>
+
+
+
+
+    [AutoInterpret(Alias: "FOR")]
+    public class ForLoopComponent
+    {
+        /// <summary>
+        /// Represents the context of a loop, including the iterator name, starting line number, whether it was created
+        /// in a loop, and the value expression.
+        /// </summary>
+        private class LoopContext
+        {
+            public required string IteratorName;
+            public int StartLine;
+            public bool CreatedInLoop;
+            public required string ValueExpression;
+        }
+
+
+        private static readonly Stack<LoopContext> loopStack = new();
+        [RegexUse(@"FOR\s+([a-zA-Z_]\w*)\s+WHEN\s+(.+?)\s*(?:DO|=>)\s*(.*)?$")]
+        public void ForStart(
+    [FromRegexIndex(1)] string variableName,
+    [FromRegexIndex(2)] string valueExpression,
+    [FromRegexIndex(3)] string inlineStatements, // may be null or empty
+    [CorePassCurrentLine_IndexAttribute] int line,
+    [CorePassLinesAttribute] string[] lines,
+    [CoreUpdateLineBy] out int jump_by)
+        {
+            bool createdInLoop = false;
+
+            if (!LetValueStore.Contains(variableName))
+            {
+                LetValueStore.Set(variableName, 0);
+                createdInLoop = true;
+            }
+
+            InlineEvaluate inline = new(valueExpression);
+            string expr_result = inline.Parse().ToString();
+            object result = LetParser.Parse(expr_result);
+
+            if (result is not bool condition)
+            {
+                throw new Exception($"FOR-IN expression '{valueExpression}' must return a boolean");
+            }
+
+            if (!condition)
+            {
+                jump_by = FindJumpTarget(line, lines, "ENDFOR");
+                return;
+            }
+
+            // ✅ If there are inline statements, evaluate them now
+            if (!string.IsNullOrWhiteSpace(inlineStatements))
+            {
+                string[] exprs = inlineStatements.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                foreach (string expr in exprs)
+                {
+                    InlineEvaluate stmt = new(expr);
+                    string parsed = stmt.Parse().ToString()!;
+                    object resultEval = LetParser.Parse(parsed);
+
+                    // auto-detect assignment?
+                    if (expr.Contains('=') && expr.Contains(variableName))
+                    {
+                        LetValueStore.NewSet(variableName, resultEval);
+                    }
+                }
+            }
+
+            loopStack.Push(new LoopContext
+            {
+                IteratorName = variableName,
+                StartLine = line,
+                CreatedInLoop = createdInLoop,
+                ValueExpression = valueExpression
+            });
+
+            jump_by = 0;
+        }
+
+        [RegexUse(@"ENDFOR")]
+        public void ForEnd(
+            [CorePassCurrentLine_IndexAttribute] int line,
+            [CorePassLinesAttribute] string[] lines,
+            [CoreUpdateLineBy] out int jump_by)
+        {
+            if (loopStack.Count == 0)
+            {
+                throw new Exception("ENDFOR without matching FOR.");
+            }
+
+            LoopContext context = loopStack.Peek();
+
+            // Re-evaluate the original value expression
+            InlineEvaluate inline = new(context.ValueExpression);
+            string parsedExpr = inline.Parse().ToString()!;
+            object result = LetParser.Parse(parsedExpr);
+
+            if (result is not bool condition)
+            {
+                throw new Exception($"Loop condition '{context.ValueExpression}' must return a boolean");
+            }
+
+            if (condition)
+            {
+                jump_by = context.StartLine - line - 1;
+            }
+            else
+            {
+                _ = loopStack.Pop();
+                if (context.CreatedInLoop)
+                {
+                    LetValueStore.PrivateRemove(context.IteratorName);
+                }
+
+                jump_by = 0;
+            }
+        }
+
+        private int FindJumpTarget(int currentLine, string[] lines, string target)
+        {
+            for (int i = currentLine + 1; i < lines.Length; i++)
+            {
+                if (lines[i].Trim().StartsWith(target, StringComparison.OrdinalIgnoreCase))
+                {
+                    return i - currentLine;
+                }
+            }
+            throw new Exception($"Missing {target} after line {currentLine}.");
+        }
+
+
+
+    }
+}
+
+
+// ===== FILE: ForEachComponent.cs =====
+using DIL.Attributes;
+using DIL.Components.ValueComponent;
+using DIL.Components.ValueComponent.Tokens;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace DIL.Components
+{
+
+    /// <summary>
+    /// Handles the FOREACH loop structure in the DSL.
+    /// 
+    /// Supports two forms:
+    /// 1. Inline form using <c>=&gt;</c>:
+    /// <code>
+    /// FOREACH item IN items => PRINTF item;
+    /// </code>
+    /// 
+    /// 2. Multiline block using <c>DO ;</c> and ending with <c>ENDFOREACH</c>:
+    /// <code>
+    /// FOREACH item IN items DO ;
+    ///     PRINT item;
+    ///     PRINTF value;
+    /// ENDFOREACH;
+    /// </code>
+    /// 
+    /// Key-value iteration over maps is also supported:
+    /// <code>
+    /// FOREACH key, val IN myMap DO ;
+    ///     PRINT key;
+    ///     PRINT ": ";
+    ///     PRINTF val;
+    /// ENDFOREACH;
+    /// </code>
+    /// </summary>
+    [Obsolete("DO NOT USE")]
+    [AutoInterpret(Alias: "FOREACH")]
+    public class ForEachComponent
+    {
+        private class LoopContext
+        {
+            public string? KeyVar;
+            public string ValueVar;
+            public List<object> Keys = new();
+            public List<object> Values = new();
+            public int Index;
+            public int StartLine;
+            public bool KeyCreated;
+            public bool ValueCreated;
+        }
+
+        private static Stack<LoopContext> loopStack = new();
+
+        [RegexUse(@"FOREACH\s+([a-zA-Z_]\w*)(?:\s*,\s*([a-zA-Z_]\w*))?\s+IN\s+(.+?)\s*(DO|=>)\s*(.*)?$")]
+        public void ForEachStart(
+            [FromRegexIndex(1)] string valueVar,
+            [FromRegexIndex(2)] string keyVar,
+            [FromRegexIndex(3)] string collectionExpr,
+            [FromRegexIndex(4)] string loopType,
+            [FromRegexIndex(5)] string inlineStatements,
+            [CorePassCurrentLine_IndexAttribute] int line,
+            [CorePassLinesAttribute] string[] lines,
+            [CoreUpdateLineBy] out int jump_by)
+        {
+           
+            var result = LetParser.Parse(collectionExpr);
+
+            List<object> keys = new();
+            List<dynamic> values = new();
+
+            if (result is IDictionary<string, object> dict)
+            {
+                foreach (var kv in dict)
+                {
+                    keys.Add(kv.Key);
+                    values.Add(kv.Value);
+                }
+            }
+            else if (result is System.Collections.IEnumerable list)
+            {
+                values = list.Cast<dynamic>().ToList();
+            }
+            else
+            {
+                throw new Exception("FOREACH expects a list or map.");
+            }
+
+            bool keyCreated = false;
+            bool valueCreated = false;
+
+            if (!string.IsNullOrEmpty(keyVar))
+            {
+                if (!LetValueStore.Contains(keyVar))
+                {
+                    LetValueStore.Set(keyVar, keys.FirstOrDefault() ?? "");
+                    keyCreated = true;
+                }
+                else
+                {
+                    LetValueStore.NewSet(keyVar, keys.FirstOrDefault() ?? "");
+                }
+            }
+
+            if (!LetValueStore.Contains(valueVar))
+            {
+                LetValueStore.Set(valueVar, values.FirstOrDefault() ?? "");
+                valueCreated = true;
+            }
+            else
+            {
+                LetValueStore.NewSet(valueVar, values.FirstOrDefault() ?? "");
+            }
+
+            if (loopType.StartsWith("=>") && !string.IsNullOrWhiteSpace(inlineStatements))
+            {
+                var stmts = inlineStatements.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                foreach (var stmt in stmts)
+                {
+                    var parsed = new InlineEvaluate(stmt).Parse().ToString()!;
+                    LetParser.Parse(parsed);
+                }
+                jump_by = FindJumpTarget(line, lines, "ENDFOREACH");
+                return;
+            }
+
+            loopStack.Push(new LoopContext
+            {
+                KeyVar = keyVar,
+                ValueVar = valueVar,
+                Keys = keys,
+                Values = values,
+                Index = 0,
+                StartLine = line,
+                KeyCreated = keyCreated,
+                ValueCreated = valueCreated
+            });
+
+            jump_by = 0;
+        }
+
+        [RegexUse(@"ENDFOREACH")]
+        public void ForEachEnd(
+            [CorePassCurrentLine_IndexAttribute] int line,
+            [CorePassLinesAttribute] string[] lines,
+            [CoreUpdateLineBy] out int jump_by)
+        {
+            if (loopStack.Count == 0)
+                throw new Exception("ENDFOREACH without matching FOREACH");
+
+            var context = loopStack.Peek();
+            context.Index++;
+
+            if (context.Index >= context.Values.Count)
+            {
+                loopStack.Pop();
+                if (context.KeyCreated && context.KeyVar != null)
+                    LetValueStore.PrivateRemove(context.KeyVar);
+                if (context.ValueCreated)
+                    LetValueStore.PrivateRemove(context.ValueVar);
+                jump_by = 0;
+                return;
+            }
+
+            LetValueStore.NewSet(context.ValueVar, context.Values[context.Index]);
+            if (context.KeyVar != null && context.Keys.Count > context.Index)
+                LetValueStore.NewSet(context.KeyVar, context.Keys[context.Index]);
+
+            jump_by = context.StartLine - line - 1;
+        }
+
+        private int FindJumpTarget(int currentLine, string[] lines, string target)
+        {
+            for (int i = currentLine + 1; i < lines.Length; i++)
+            {
+                if (lines[i].Trim().StartsWith(target, StringComparison.OrdinalIgnoreCase))
+                    return i - currentLine;
+            }
+            throw new Exception($"Missing {target} after line {currentLine}.");
+        }
+    }
+}
+
+
+// ===== FILE: goto.cs =====
+using DIL.Attributes;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+
+namespace DIL.Components.GotoCOmponent
+{
+    [AutoInterpret("goto")]
+    public class @goto
+    {
+        [RegexUse(@"^([A-Z a-z ]*\d*)\s*:")]
+        public void MarkAsGotoable([FromRegexIndex(1)] string Name,[CorePassCurrentLine_Index] int current_line ,[CorePassLines] string[] lines)
+        {
+            if (lines.Length == 0) return;
+            var li = lines.ToList();
+            li.RemoveRange(current_line, 1);
+            if (li.Any(x => Regex.Match(x, @$"^{Name}\s*:").Success) )
+            {
+                throw new DuplicateWaitObjectException("Duplicate Goto. of {Name}.");
+            }
+        }
+        [RegexUse(@"^goto\s+([A-Z a-z ]*\d*)")]
+        public void GoToGotoable([FromRegexIndex(1)] string Name, [CorePassLines] string[] lines, [CorePassCurrentLine_Index] int currentline, [CoreUpdateLineBy] out int by)
+        {
+            if (lines == null || lines.Length == 0)
+            {
+                throw new ArgumentNullException($"No Gotoable object named {Name}");
+            }
+            var obj = lines.FirstOrDefault(x => Regex.Match(x, @$"^{Name}\s*:").Success);
+            if(obj is null)
+                throw new ArgumentNullException($"No Gotoable object named {Name}");
+            by = lines.ToList().IndexOf(obj)-currentline;
+            
+
+        }
+    }
+}
+
+
+// ===== FILE: LetArrayHandler.cs =====
+using DIL.Components.ValueComponent;
+using System;
+
+namespace DIL.Components.ValueComponent
+{
+    public static class LetArrayHandler
+    {
+        /// <summary>
+        /// Parses a nested array expression into a multidimensional array.
+        /// </summary>
+        public static object ParseArray(string value)
+        {
+            if (!value.StartsWith("[") || !value.EndsWith("]"))
+                throw new Exception($"Invalid array syntax: {value}");
+
+            var innerValues = value.Trim('[', ']').Split("],[", StringSplitOptions.RemoveEmptyEntries);
+            var array = new object[innerValues.Length][];
+
+            for (int i = 0; i < innerValues.Length; i++)
+            {
+                var elements = innerValues[i].Trim('[', ']').Split(',');
+                array[i] = Array.ConvertAll(elements, e => LetParser.Parse(e.Trim()));
+            }
+
+            return array;
+        }
+    }
+}
+
+
+// ===== FILE: LetComponent.cs =====
+using System;
+using System.Globalization;
+using DIL.Attributes;
+using DIL.BindConvertComponents;
+using DIL.Components.ClassComponents;
+using DIL.Components.ValueComponent;
+using DIL.Components.ValueComponent.Tokens;
+using Map = System.Collections.Generic.Dictionary<string, object?>;
+namespace DIL.Components.ValueComponent
+{
+    /// <summary>
+    /// Handles dynamic LET, GET, and CALL commands for storing, retrieving, and invoking data.
+    /// </summary>
+    [AutoInterpret(Alias: "LET")]
+    public class LetComponent
+    {
+
+        /// <summary>
+        /// Executes the LET command for dynamically storing variables.
+        /// let m = 23 + id;
+        /// </summary>
+        [RegexUse(@"^let\s+(\w+)\s*=\s*(.+?)(?:\s+as\s+(.+|map))?$")]
+        public void LetVariable(
+            [FromRegexIndex(1)] string key,
+            [FromRegexIndex(2)] string valueExpression,
+            [FromRegexIndex(3)] string? type = null
+        )
+        {
+            if (type is null or "" || string.IsNullOrEmpty(type)) type = "object";
+            key = key.Trim();
+
+            var value = LetParser.Parse(valueExpression, type);
+            LetValueStore.Set(key, value);
+        }
+        /// <summary>
+        /// Executes the LET command for dynamically storing variables.
+        ///  m = 23 + id;
+        /// </summary>
+        [RegexUse(@"^\s*(\w+)\s*=\s*(.+?)(?:\s+as\s+(.+|map))?$")]
+        public void SetVariable(
+            [FromRegexIndex(1)] string key,
+            [FromRegexIndex(2)] string valueExpression,
+            [FromRegexIndex(3)] string? type = null
+        )
+        {
+            if (type is null or "" || string.IsNullOrEmpty(type)) type = null;
+            key = key.Trim();
+
+            if (type is not "map")
+            {
+                InlineEvaluate inline = new InlineEvaluate(valueExpression);
+                // Parse the value and apply the optional type
+                var value = LetParser.Parse(inline.Parse().ToString()!, type);
+                LetValueStore.NewSet(key, value);
+            }
+            else
+            {
+
+                var value = LetParser.Parse(valueExpression, type);
+                LetValueStore.NewSet(key, value);
+            }
+        }
+
+        [RegexUse(@"^\s*(.*?)((?:->)(.*))?\s*=\s*(.*?)(?:\s+as\s+(.+|map))?$")]
+        public void EditDObject([FromRegexIndex(1)] string key,
+            [FromRegexIndex(2)] string Fields,
+            [FromRegexIndex(4)] string? newValue,
+            [FromRegexIndex(5)] string? type)
+        {
+            if (Fields.StartsWith("->"))
+            {
+                Fields = Fields.Substring(2);
+            }
+            dynamic? typeOf = LetValueStore.Get(key);
+           
+            if (typeOf is not null &&typeOf is ClassInstance instance)
+            {
+                var value = LetParser.Parse(newValue ?? "", string.IsNullOrEmpty(type) ? null : type);
+                instance.SetProperty(Fields ?? "", value);
+                return;
+            }
+             //if (typeOf is not null&& string.IsNullOrEmpty(type)&&typeOf is Map && type is null)
+             //   type = "map";
+
+
+
+            SetVariable(key, Fields ?? "", type);
+        }
+        [RegexUse(@"^count\s+(.*)$")]
+        public void Test([FromRegexIndex(1),ConvertFromString(typeof(GetLenghtIBindComponent))]int count)
+        {
+            Console.WriteLine(count);
+        }
+    }
+}
+
+
+// ===== FILE: LetDynamicHandler.cs =====
+using DIL.Components.ClassComponents;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Text.RegularExpressions;
+
+namespace DIL.Components.ValueComponent
+{
+    public static class LetDynamicHandler
+    {
+        /// <summary>
+        /// Handles dynamic retrieval queries for arrays, maps, and objects.
+        /// </summary>
+        public static object? HandleGet(string query)
+        {
+            var parts = query.Split(new[] { "[", "]", "->" }, StringSplitOptions.RemoveEmptyEntries);
+            var baseKey = parts[0].Trim();
+
+            var value = LetValueStore.Get(baseKey)
+                ?? throw new Exception($"Variable '{baseKey}' does not exist.");
+
+            for (int i = 1; i < parts.Length; i++)
+            {
+                if (value is IEnumerable list_ )
+                {
+                    var list = list_.Cast<object>().ToArray();
+                    int index = -1;
+                    if (Regex.Match(parts[i], @"^\d+$").Success && (int.TryParse(parts[i], out index)));
+                    else
+                    {
+                        var GetVarValue = LetDynamicHandler.HandleGet(parts[i]).ToString();
+                        
+                        index = (int)LetParser.Parse(GetVarValue, "int");
+                        
+                    }
+                    if (index < 0 || index >= list.Length)
+                        throw new Exception($"Index '{index}' out of range for array '{baseKey}'.");
+                    value = list[index];
+                }
+                else if (value is IDictionary<string, object?> map)
+                {
+                    if (!map.ContainsKey(parts[i]))
+                        throw new Exception($"Key '{parts[i]}' not found in map '{baseKey}'.");
+                    value = map[parts[i]];
+                }
+                else if (value is string str && int.TryParse(parts[i], out var index_str))
+                {
+                    if (index_str < 0 || index_str >= str.Length)
+                        throw new Exception($"Index '{index_str}' out of range for array '{baseKey}'.");
+                    value = str[index_str];
+                }
+                else if(value is ClassInstance c)
+                {
+                    //User->Type,User->... for ClassInstanceS
+                    value = c.GetProperty(parts[i]);
+                }
+               
+                else
+                {
+                    throw new Exception($"Invalid query part '{parts[i]}' for variable '{baseKey}'.");
+                }
+            }
+            return value;
+        }
+    }
+}
+
+
+// ===== FILE: LetParser.cs =====
+using DIL.Components.ValueComponent.Tokens;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Text.RegularExpressions;
+
+namespace DIL.Components.ValueComponent
+{
+    public static class LetParser
+    {
+        /// <summary>
+        /// Parses a value expression into a dynamically inferred type.
+        /// </summary>
+        ///
+        private readonly static ClassComponents.ClassComponent class_comp = new();
+        public static object Parse(string valueExpression, string? type = null)
+        {
+            object parsedValue;
+
+            if (type != null)
+            {
+                // If a type is explicitly provided, parse and validate against the type
+                parsedValue = ParseWithType(valueExpression, type);
+            }
+            else
+            {
+                // Infer the type dynamically if no type is provided
+                parsedValue = InferAndParse(valueExpression);
+            }
+
+            return parsedValue;
+        }
+
+        /// <summary>
+        /// Parses the value expression with the specified type.
+        /// </summary>
+        private static object ParseWithType(string valueExpression, string type)
+        {
+            var parsedValue = InferAndParse(valueExpression,type);
+
+            // Validate the parsed value against the provided type
+            if (!LetValidator.Validate(parsedValue, type))
+            {
+                throw new Exception($"Value '{valueExpression}' does not match the  type '{type}'.");
+            }
+
+            return LetValidator.Cast(parsedValue, type);
+        }
+
+        /// <summary>
+        /// Infers the type of the value expression and parses it accordingly.
+        /// </summary>
+        private static object InferAndParse(string valueExpression, string? type = null)
+        {
+            if (!string.IsNullOrEmpty(type))
+            {
+                return type.ToLower() switch
+                {
+                    "array" => ParseArray(valueExpression),
+                    "map" => ParseMap(valueExpression),
+                    "int" when int.TryParse(valueExpression, out var intValue) => intValue,
+                    "double" when double.TryParse(valueExpression, out var doubleValue) => doubleValue,
+                    "string" => valueExpression.TrimStart('\"').TrimEnd('\"'),
+                    "binary" when Regex.IsMatch(valueExpression, @"^[01]+$") => ParseBinary(valueExpression),
+                    "object" => valueExpression,
+                    "class" => class_comp.GetInstanceProperty(valueExpression.ToString()!, !string.IsNullOrEmpty(valueExpression) ? string.Join("->", valueExpression.Split("->")?.Skip(1) ?? []):"")?? 
+                    throw new InvalidOperationException(@$"invalid operation: ""{valueExpression}"" at {valueExpression}"),
+                    _ => throw new ArgumentException($"Type '{type}' can't be cast.")
+                };
+            }
+
+            // Infer type if 'type' is null
+            if (valueExpression.StartsWith("[") && valueExpression.EndsWith("]"))
+            {
+                return ParseArray(valueExpression); // Infer as array
+            }
+            else if (valueExpression.StartsWith("{") && valueExpression.EndsWith("}"))
+            {
+                return ParseMap(valueExpression); // Infer as map
+            }
+            else if (int.TryParse(valueExpression, out var intValue))
+            {
+                return intValue; // Infer as integer
+            }
+            else if (double.TryParse(valueExpression, out var doubleValue))
+            {
+                return doubleValue; // Infer as double
+            }
+            else if (valueExpression.StartsWith("\"") && valueExpression.EndsWith("\""))
+            {
+                return valueExpression.TrimStart('\"').TrimEnd('\"'); // Infer as string
+            }
+            else if (Regex.IsMatch(valueExpression, @"^[01]+$"))
+            {
+                return ParseBinary(valueExpression); // Infer as binary
+            }
+            else if (LetValueStore.Contains(valueExpression.Trim()))
+            {
+                return LetValueStore.Get(valueExpression.Trim()) ?? default!;
+            }
+            else if (bool.TryParse(valueExpression, out bool result))
+                return result;
+           
+            else
+            {
+                InlineEvaluate inline = new InlineEvaluate(valueExpression);
+                // Parse the value and apply the optional type
+                var value = LetParser.Parse(inline.Parse().ToString()!, type);
+                return value;
+                //throw new ArgumentException($"Cannot determine type for value: '{valueExpression}'.");
+            }
+        }
+
+
+        private static string GetFrom(int start, int end, string value)
+        {
+            if (start < 0 || end > value.Length || start >= end)
+                throw new ArgumentOutOfRangeException("Invalid range specified for GetFrom.");
+
+            return value.Substring(start, end - start);
+        }
+
+        /// <summary>
+        /// Parses a nested array expression into a multidimensional array.
+        /// </summary>
+        private static IList ParseArray(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new Exception("Empty array cannot be parsed.");
+
+            if(value.StartsWith("[") && value.EndsWith("]"))
+            {
+                value = GetFrom(1,value.Length-1,value);
+            }
+            
+
+            var elements = new List<object>();
+            int start = 0;
+            int bracketDepth = 0;
+
+            for (int i = 0; i < value.Length; i++)
+            {
+                char current = value[i];
+
+                if (current == '[')
+                {
+                    bracketDepth++;
+                }
+                else if (current == ']')
+                {
+                    bracketDepth--;
+                }
+
+                // If at the top level and encountering a comma, split elements
+                if (bracketDepth == 0 && current == ',')
+                {
+                    var element = value.Substring(start, i - start).Trim();
+                    
+                    elements.Add(element.StartsWith("[") ? ParseArray(element) : InferAndParse(element));
+                    start = i + 1;
+                }
+            }
+
+            // Add the last element
+            var lastElement = value.Substring(start).Trim();
+            elements.Add(lastElement.StartsWith("[") ? ParseArray(lastElement) : InferAndParse(lastElement));
+
+            return elements;
+        }
+
+        /// <summary>
+        /// Parses a map (dictionary) expression into a dictionary object.
+        /// </summary>
+        private static IDictionary<string, object?> ParseMap(string value)
+        {
+            var map = new Dictionary<string, object?>();
+            var matches = Regex.Matches(value, @"(\w+)\s*:\s*((""[^""]*"")|(\{(?:[^{}]*|(?<Open>\{)|(?<-Open>\}))*\}(?(Open)(?!)))|(\[(?:[^\[\]]*|(?<Open>\[)|(?<-Open>\]))*\](?(Open)(?!)))|([^,{}]+))");
+
+            foreach (Match match in matches)
+            {
+                var key = match.Groups[1].Value;
+                var val = InferAndParse(match.Groups[2].Value); // Parse each map value dynamically
+                map[key] = val;
+            }
+
+            return map;
+        }
+
+        /// <summary>
+        /// Parses a binary value into an integer or byte array.
+        /// </summary>
+        private static object ParseBinary(string value)
+        {
+            if (value.Length % 8 == 0)
+            {
+                // Infer as byte array if length is a multiple of 8
+                var bytes = new List<byte>();
+                for (int i = 0; i < value.Length; i += 8)
+                {
+                    var binarySegment = value.Substring(i, 8);
+                    bytes.Add(Convert.ToByte(binarySegment, 2));
+                }
+                return bytes.ToArray();
+            }
+
+            // Infer as integer if not divisible by 8
+            return Convert.ToInt32(value, 2);
+        }
+    }
+}
+
+
+// ===== FILE: LetValidator.cs =====
+using DIL.Components.ClassComponents;
+using System;
+using System.Collections;
+
+namespace DIL.Components.ValueComponent
+{
+    public static class LetValidator
+    {
+        /// <summary>
+        /// Validates whether the value matches the desired type dynamically.
+        /// </summary>
+        public static bool Validate(object? value, string type)
+        {
+            if (value == null) value = default;
+            if (type is null or "" || string.IsNullOrEmpty(type)) type = "object";
+            type = type.ToLower();
+
+            return type switch
+            {
+                "int" => value is int,
+                "string" => value is string,
+                "array" => value is IList, // General array or list
+                "map" => value is IDictionary, // General dictionary
+                "object" => true, // Allow any non-null object
+                "class"=>value is ClassInstance,
+                _ => ValidateComplexType(value, type) // Handle complex or custom types
+            };
+        }
+
+        /// <summary>
+        /// Converts a value into the specified type dynamically.
+        /// </summary>
+        public static object Cast(object value, string type)
+        {
+            type = type.ToLower();
+          
+            return type switch
+            {
+                "int" => ConvertToInt(value),
+                "string" => ConvertToString(value),
+                "array" => ConvertToArray(value),
+                "map" => ConvertToMap(value),
+                "object" => value,
+                "class"=>value,
+                _ => throw new Exception($"Invalid type casting  '{type}'.")
+            };
+        }
+
+        /// <summary>
+        /// Validates complex or custom types like nested arrays dynamically.
+        /// </summary>
+        private static bool ValidateComplexType(object value, string type)
+        {
+            if (type.StartsWith("[") && type.EndsWith("]"))
+            {
+                // Handle nested arrays dynamically
+                return ValidateNestedArray(value, type);
+            }
+
+            throw new Exception($"invaild token type: '{type}'.");
+        }
+
+        /// <summary>
+        /// Validates nested arrays dynamically based on the structure of the value.
+        /// </summary>
+        private static bool ValidateNestedArray(object value, string type)
+        {
+            if (!(value is IList list)) return false;
+
+            // Strip one level of brackets (e.g., "[][]" -> "[]")
+            string innerType = type[1..^1];
+
+            foreach (var item in list)
+            {
+                if (!Validate(item, innerType)) return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Converts a value to an integer.
+        /// </summary>
+        private static int ConvertToInt(object value)
+        {
+            if (value is int intValue) return intValue;
+
+            if (int.TryParse(value.ToString(), out int result))
+            {
+                return result;
+            }
+
+            throw new Exception($"Cannot cast value '{value}' to type 'int'.");
+        }
+
+        /// <summary>
+        /// Converts a value to a string.
+        /// </summary>
+        private static string ConvertToString(object value)
+        {
+            return value.ToString() ?? throw new Exception($"Cannot cast value '{value}' to type 'string'.");
+        }
+
+        /// <summary>
+        /// Converts a value to an array.
+        /// </summary>
+        private static IList ConvertToArray(object value)
+        {
+            if (value is IList list) return list;
+
+            throw new Exception($"Cannot cast value '{value}' to type 'array'.");
+        }
+
+        /// <summary>
+        /// Converts a value to a map (dictionary).
+        /// </summary>
+        private static IDictionary ConvertToMap(object value)
+        {
+            if (value is IDictionary dictionary) return dictionary;
+
+            throw new Exception($"Cannot cast value '{value}' to type 'map'.");
+        }
+    }
+}
+
+
+// ===== FILE: LetValueStore.cs =====
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+
+namespace DIL.Components.ValueComponent
+{
+    /// <summary>
+    /// Centralized storage for LET variables.
+    /// </summary>
+    public static class LetValueStore
+    {
+        private static readonly Dictionary<string, object?> _store = new();
+
+        /// <summary>
+        /// Stores a variable dynamically.
+        /// </summary>
+        public static void Set(string key, object? value)
+        {
+            (string Refname, object? FinalValue) x = (null, value);
+            
+            if (string.IsNullOrWhiteSpace(key))
+                throw new ArgumentException("Variable name cannot be null or empty.");
+            else if (_store.ContainsKey(key))
+                throw new Exception($"Variable '{key}' isDefined.");
+            if (value is string str && !str.StartsWith("\"") && !str.EndsWith("\""))
+                x = dymicSet(str);
+            _store[key.Trim()] = x.FinalValue;
+        }
+        /// <summary>
+        /// Edit a stored  variable dynamically.
+        /// </summary>
+        public static void NewSet(string key, object? value)
+        {
+            (string name, object? FinalValue) x = (null,value);
+            if (value is string str && !str.StartsWith("\"") && !str.EndsWith("\""))
+                x = dymicSet(str);
+            if (string.IsNullOrWhiteSpace(key))
+                throw new ArgumentException("Variable name cannot be empty.");
+            else if (!_store.ContainsKey(key))
+                throw new Exception($"Variable '{key}' is not Defined.");
+            else if (_store[key] is object obl && value is not null&& obl.GetType() != value?.GetType())
+                throw new InvalidCastException($"InvalidCastException. Can't cast '{obl.GetType()}' to '{value?.GetType()}'");
+            _store[key.Trim()] = x.FinalValue;
+        }
+        
+        public static Type GetType(string key)
+        {
+            if (!_store.ContainsKey(key.Trim()))
+                throw new Exception($"Variable '{key}' does not exist.");
+            return _store[key.Trim()]?.GetType() ?? typeof(object);
+        }
+        /// <summary>
+        /// Retrieves a stored variable.
+        /// </summary>
+        public static object? Get(string key)
+        {
+            return dymicSet(key).FinalValue;
+        }
+        /// <summary>
+        /// Retrieves a value from a nested structure using a dot-separated string of keys and method calls.
+        /// </summary>
+        /// <param name="key_steps">A dot-separated string representing the path to the desired member or method in the nested structure.</param>
+        /// <returns>The value retrieved from the specified path in the nested structure.</returns>
+        /// <exception cref="Exception">Thrown when a specified variable, method, or member does not exist or when a null reference is encountered.</exception>
+        private static (string objectRefName,object? FinalValue) dymicSet(string key_steps)
+        {
+            
+            var steps = key_steps.Split('.');
+            var name = steps[0].Trim();
+
+            if (!_store.ContainsKey(name))
+                throw new Exception($"Variable '{key_steps}' is not defined.");
+
+            dynamic? current = _store[name];
+
+            for (int i = 1; i < steps.Length; i++)
+            {
+                if (current == null)
+                    throw new Exception($"Null reference at '{string.Join('.', steps.Take(i))}'.");
+
+                var type = current.GetType() as Type;
+                var rawStep = steps[i].Trim();
+
+
+                bool isMethod = rawStep.EndsWith("()");
+
+                string memberName = isMethod
+                    ? rawStep.Substring(0, rawStep.Length - 2)
+                    : rawStep;
+
+                if (isMethod)
+                {
+                    var method = type.GetMethod(memberName, Type.EmptyTypes);
+                    if (method == null)
+                        throw new Exception($"Method '{memberName}' not found on type '{type.Name}'.");
+
+                    current = method.Invoke(current, null);
+                }
+                else
+                {
+                    var prop = type.GetProperty(memberName, BindingFlags.Instance | BindingFlags.Public);
+                    if (prop != null)
+                    {
+                        current = prop.GetValue(current);
+                        continue;
+                    }
+
+                    var field = type.GetField(memberName, BindingFlags.Instance | BindingFlags.Public);
+                    if (field != null)
+                    {
+                        current = field.GetValue(current);
+                        continue;
+                    }
+
+                    throw new Exception($"Member '{memberName}' not found on type '{type.Name}'.");
+                }
+            }
+
+            return (name, current);
+        }
+        public static bool Contains(string key)=>_store.ContainsKey(key.Trim());
+
+        internal static void PrivateRemove(string iteratorName)
+        {
+           if(!Contains(iteratorName))
+                { return; }
+           _store.Remove(iteratorName);
+        }
+    }
+}
+
+
+// ===== FILE: InlineEvaluate.cs =====
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+
+namespace DIL.Components.ValueComponent.Tokens
+{
+    public record Token(
+        TokenType tokenType,
+        TokenOperator @operator,
+        object value,
+        int postion_start,
+        int postion_end
+    );
+
+    public class InlineEvaluate : ClassComponents.ClassComponent
+    {
+        private const string TokenRegex =
+            @"(?<NUMBER>\d+(\.\d+)?)|(?<STRING>"".*?"")|(?<OPERATOR>(\+|\-|\*|/|%|&|\|\||\|\||==|is|!=|<=|>=|<<|>>))|(?<SETTER>=)|(?<BRACKET>[(){}\[\]])|(?<IDENTIFIER>(\b[a-zA-Z_]\w*(?:->\w+|\[\d+\])*(?:->\w+|\[\d+\])*?(?:\s*,\s*\b[a-zA-Z_]\w*(?:->\w+|\[\d+\])*(?:->\w+|\[\d+\])*)*))";
+
+        private readonly List<Token> tokens;
+        private readonly string _inline;
+        private static readonly GetComponent _getcomponent = new();
+
+        // Main constructor
+        public InlineEvaluate(string inline)
+        {
+            _inline = inline;
+            tokens = BuildTokens(inline);
+            ValidateTokens(tokens);
+        }
+
+        // Internal use for recursive bracket evaluation
+        internal InlineEvaluate(List<Token> tokens)
+        {
+            _inline = string.Empty;
+            this.tokens = tokens;
+        }
+
+        private List<Token> BuildTokens(string inline)
+        {
+            var tokenList = new List<Token>();
+            var regexResults = Regex.Matches(inline, TokenRegex);
+
+            foreach (Match match in regexResults)
+            {
+               
+                if (match.Groups["NUMBER"].Success)
+                    tokenList.Add(new Token(TokenType.Number, TokenOperator.None, double.Parse(match.Value), match.Index, match.Index + match.Length));
+                else if (match.Groups["STRING"].Success)
+                    tokenList.Add(new Token(TokenType.String, TokenOperator.None, match.Value.Trim('"'), match.Index, match.Index + match.Length));
+                else if (match.Groups["OPERATOR"].Success)
+                    tokenList.Add(new Token(TokenType.Operator, ParseOperator(match.Value.Trim()), match.Value, match.Index, match.Index + match.Length));
+                else if (match.Groups["BRACKET"].Success)
+                    tokenList.Add(new Token(TokenType.Bracket, TokenOperator.None, match.Value, match.Index, match.Index + match.Length));
+                else if (match.Groups["IDENTIFIER"].Success)
+                    tokenList.Add(new Token(TokenType.Identifier, TokenOperator.None, match.Value, match.Index, match.Index + match.Length));
+                else if (match.Groups["SETTER"].Success)
+                    tokenList.Add(new Token(TokenType.Identifier, TokenOperator.SETTER, match.Value, match.Index, match.Index + match.Length));
+            }
+
+            return tokenList;
+        }
+
+        private void ValidateTokens(List<Token> tokenList)
+        {
+            var stack = new Stack<Token>();
+            foreach (var token in tokenList)
+            {
+                if (token.tokenType == TokenType.Bracket)
+                {
+                    var ch = token.value.ToString();
+                    if (IsOpeningBracket(ch)) stack.Push(token);
+                    else if (IsClosingBracket(ch))
+                    {
+                        if (stack.Count == 0 || !IsMatchingBracket(stack.Pop().value.ToString(), ch))
+                            throw new InvalidOperationException($"Mismatched or unmatched bracket '{ch}' at position {token.postion_start}.");
+                    }
+                }
+            }
+            if (stack.Count > 0)
+                throw new InvalidOperationException("Unmatched opening brackets found.");
+        }
+
+        public object Parse(bool returnRaw = false)
+        {
+            object result = EvaluateTokens(tokens);
+            return returnRaw
+                ? result
+                : EditRange(_inline, tokens[0].postion_start, tokens[^1].postion_end - 1, result.ToString());
+        }
+
+        private object EvaluateTokens(List<Token> tokens)
+        {
+            object left_name = null;
+            bool RefSet = false;
+            object? left = null, right = null;
+            TokenOperator currentOp = TokenOperator.None;
+
+            for (int i = 0; i < tokens.Count; i++)
+            {
+                var token = tokens[i];
+
+                if (token.tokenType == TokenType.Bracket && IsOpeningBracket(token.value.ToString()))
+                {
+                    var subTokens = ExtractBracketTokens(tokens, i, out int newIndex);
+                    left ??= new InlineEvaluate(subTokens).Parse(true);
+                    i = newIndex;
+                    continue;
+                }
+
+                switch (token.tokenType)
+                {
+                    case TokenType.Number:
+                    case TokenType.String:
+                        left ??= token.value;
+                        break;
+
+                    case TokenType.Identifier:
+                        left_name = token.value;
+                        left ??= _getcomponent.GetVariable(token.value.ToString())
+                        ?? throw new InvalidOperationException($"Unknown identifier: {token.value}");
+
+                        break;
+
+                    case TokenType.Operator:
+                        if (left == null) throw new InvalidOperationException("Missing left operand.");
+                        currentOp = token.@operator;
+                        break;
+
+                }
+
+                if (currentOp != TokenOperator.None && i + 1 < tokens.Count)
+                {
+                    var rightToken = tokens[++i];
+                    if(rightToken.@operator == TokenOperator.SETTER)
+                    {
+                        if(left_name is not "")
+                        {
+                            RefSet = true;
+                            
+                        }
+                                else
+                            throw new InvalidOperationException("Not able to set value .null.");
+                        rightToken = tokens[++i];
+
+                    }
+
+                    if (rightToken.tokenType == TokenType.Bracket && IsOpeningBracket(rightToken.value.ToString()))
+                    {
+                        var subTokens = ExtractBracketTokens(tokens, i, out int newIndex);
+                        right = new InlineEvaluate(subTokens).Parse(true);
+                        
+                        i = newIndex;
+                    }
+                    else
+                    {
+                       
+                        right = rightToken.tokenType switch
+                        {
+                            TokenType.Number => Convert.ToDouble(rightToken.value),
+                            TokenType.String => rightToken.value,
+                            TokenType.Identifier => _getcomponent.GetVariable(rightToken.value.ToString()),
+                            _ => throw new InvalidOperationException($"Invalid right operand: {rightToken.value}")
+                        };
+                    }
+                    var leftType = left.GetType();
+                    left = Evaluate(left!, currentOp, right!);
+                    if(left is bool v &&v)
+                    {
+                        //(b-20)(condtions(>>,<<))=(setter)=20
+                        //if the codtion is true the identifier is automac reset to the right value
+                        // If the condition (e.g., b > 20) is true, assign right to the original identifier
+                        if (RefSet)
+                        {
+                            if (string.IsNullOrWhiteSpace(left_name?.ToString()))
+                                throw new InvalidOperationException(
+                                                                   $"Failed to assign value '{right}' to 'Identifier' of type '{leftType.Name}' because there was no direct Identifier");
+                            RefSet = false; // mark ref assignment as consumed
+
+                            try
+                            {
+                                var convertedRight = Convert.ChangeType(right, leftType);
+                                _getcomponent.NewSet(left_name!.ToString(), convertedRight);
+                            }
+                            catch (Exception ex)
+                            {
+                                throw new InvalidOperationException(
+                                    $"Failed to assign value '{right}' to '{left_name}' of type '{leftType.Name}': {ex.Message}", ex);
+                            }
+                        }
+                    }
+                    currentOp = TokenOperator.None;
+                  
+                    right = null;
+                }
+            }
+            
+
+            return left ?? throw new InvalidOperationException("No valid expression to evaluate.");
+        }
+
+        private static List<Token> ExtractBracketTokens(List<Token> allTokens, int startIndex, out int newIndex)
+        {
+            var open = allTokens[startIndex].value.ToString();
+            var close = open switch
+            {
+                "(" => ")",
+                "[" => "]",
+                "{" => "}",
+                _ => throw new InvalidOperationException("Invalid bracket.")
+            };
+
+            int depth = 1;
+            var subTokens = new List<Token>();
+            newIndex = startIndex + 1;
+
+            for (; newIndex < allTokens.Count; newIndex++)
+            {
+                var t = allTokens[newIndex];
+                if (t.tokenType == TokenType.Bracket)
+                {
+                    if (t.value.ToString() == open) depth++;
+                    else if (t.value.ToString() == close) depth--;
+                }
+
+                if (depth == 0) break;
+                subTokens.Add(t);
+            }
+
+            if (depth != 0)
+                throw new InvalidOperationException($"Unmatched bracket starting at position {allTokens[startIndex].postion_start}");
+
+            return subTokens;
+        }
+
+        public static object Evaluate(object left, TokenOperator op, object right)
+        {
+            right = Convert.ChangeType(right, left.GetType());
+            return op switch
+            {
+                TokenOperator.Add => TryNumeric(left, right, (a, b) => a + b) ?? left.ToString() + right.ToString(),
+                TokenOperator.Subtract => ToDouble(left) - ToDouble(right),
+                TokenOperator.Multiply => ToDouble(left) * ToDouble(right),
+                TokenOperator.Divide => ToDouble(right) == 0 ? throw new DivideByZeroException() : ToDouble(left) / ToDouble(right),
+                TokenOperator.Modulus => ToDouble(left) % ToDouble(right),
+                TokenOperator.BitwiseAnd => ToInt(left) & ToInt(right),
+                TokenOperator.BitwiseOr => ToInt(left) | ToInt(right),
+                TokenOperator.LogicalAnd => ToBool(left) && ToBool(right),
+                TokenOperator.LogicalOr => ToBool(left) || ToBool(right),
+                TokenOperator.Equal => Equals(left, right),
+                TokenOperator.NotEqual => !Equals(left, right),
+                TokenOperator.LessThan => ToDouble(left) < ToDouble(right),
+                TokenOperator.GreaterThan => ToDouble(left) > ToDouble(right),
+                TokenOperator.LessThanOrEqual => ToDouble(left) <= ToDouble(right),
+                TokenOperator.GreaterThanOrEqual => ToDouble(left) >= ToDouble(right),
+                _ => throw new InvalidOperationException("Unsupported operator")
+            };
+        }
+
+        public static string EditRange(string input, int start, int end, string newValue)
+        {
+            return input.Substring(0, start) + newValue + input.Substring(end + 1);
+        }
+
+        private static double ToDouble(object val) => Convert.ToDouble(val);
+        private static int ToInt(object val) => Convert.ToInt32(val);
+        private static bool ToBool(object val) => Convert.ToBoolean(val);
+
+        private static object? TryNumeric(object a, object b, Func<double, double, object> op)
+        {
+            try { return op(ToDouble(a), ToDouble(b)); } catch { return null; }
+        }
+
+        private static bool IsOpeningBracket(string b) => b is "(" or "{" or "[";
+        private static bool IsClosingBracket(string b) => b is ")" or "}" or "]";
+        private static bool IsMatchingBracket(string open, string close) =>
+            (open, close) switch
+            {
+                ("(", ")") => true,
+                ("[", "]") => true,
+                ("{", "}") => true,
+                _ => false
+            };
+
+        private TokenOperator ParseOperator(string op) => op switch
+        {
+            "+" => TokenOperator.Add,
+            "-" => TokenOperator.Subtract,
+            "*" => TokenOperator.Multiply,
+            "/" => TokenOperator.Divide,
+            "%" => TokenOperator.Modulus,
+            "&" => TokenOperator.BitwiseAnd,
+            "|" => TokenOperator.BitwiseOr,
+            "&&" => TokenOperator.LogicalAnd,
+            "||" => TokenOperator.LogicalOr,
+            ">>" => TokenOperator.GreaterThan,
+            "<<" => TokenOperator.LessThan,
+            "<=" => TokenOperator.LessThanOrEqual,
+            ">=" => TokenOperator.GreaterThanOrEqual,
+            "==" or "is" => TokenOperator.Equal,
+            "!=" or "is not"=> TokenOperator.NotEqual,
+            _ => throw new InvalidOperationException($"Unknown operator: {op}")
+        };
+    }
+}
+
+
+// ===== FILE: Token.cs =====
+// Refactored InlineEvaluator.cs with robust handling of complex expressions
+namespace DIL.Components.ValueComponent.Tokens
+{
+   
+}
+
+// ===== FILE: TokenOperator.cs =====
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace DIL.Components.ValueComponent.Tokens
+{
+    public enum TokenOperator
+    {
+        None, // For non-operator tokens
+        Add, // +
+        Subtract, // -
+        Multiply, // *
+        Divide, // /
+        Modulus, // %
+        BitwiseAnd, // &
+        BitwiseOr, // |
+        LogicalAnd, // &&
+        LogicalOr, // ||
+        GreaterThan, // >
+        LessThan, // <
+        Equal, // ==
+        NotEqual,
+        LessThanOrEqual,
+        GreaterThanOrEqual,
+        SETTER
+    }
+
+
+}
+
+
+// ===== FILE: TokenType.cs =====
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace DIL.Components.ValueComponent.Tokens
+{
+    public enum TokenType
+    {
+        String,
+        Number,
+        Bracket,
+        Identifier,
+        Operator
+    }
+}
+
+
+// ===== FILE: .NETCoreApp,Version=v8.0.AssemblyAttributes.cs =====
+// <autogenerated />
+using System;
+using System.Reflection;
+[assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v8.0", FrameworkDisplayName = ".NET 8.0")]
+
+
+// ===== FILE: DIL.AssemblyInfo.cs =====
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//     Runtime Version:4.0.30319.42000
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: System.Reflection.AssemblyCompanyAttribute("DIL")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9766ff9d2cdd3acccfeb3aa09fd08b86d3f838cb")]
+[assembly: System.Reflection.AssemblyProductAttribute("DIL")]
+[assembly: System.Reflection.AssemblyTitleAttribute("DIL")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+
+
+// ===== FILE: DIL.GlobalUsings.g.cs =====
+// <auto-generated/>
+global using System;
+global using System.Collections.Generic;
+global using System.IO;
+global using System.Linq;
+global using System.Net.Http;
+global using System.Threading;
+global using System.Threading.Tasks;
+
+
+// ===== FILE: .NETCoreApp,Version=v9.0.AssemblyAttributes.cs =====
+// <autogenerated />
+using System;
+using System.Reflection;
+[assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v9.0", FrameworkDisplayName = ".NET 9.0")]
+
+
+// ===== FILE: DIL.AssemblyInfo.cs =====
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//     Runtime Version:4.0.30319.42000
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: System.Reflection.AssemblyCompanyAttribute("DIL")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyProductAttribute("DIL")]
+[assembly: System.Reflection.AssemblyTitleAttribute("DIL")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+
+
+// ===== FILE: DIL.GlobalUsings.g.cs =====
+// <auto-generated/>
+global using global::System;
+global using global::System.Collections.Generic;
+global using global::System.IO;
+global using global::System.Linq;
+global using global::System.Net.Http;
+global using global::System.Threading;
+global using global::System.Threading.Tasks;
+
+
+// ===== FILE: .NETCoreApp,Version=v8.0.AssemblyAttributes.cs =====
+// <autogenerated />
+using System;
+using System.Reflection;
+[assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v8.0", FrameworkDisplayName = ".NET 8.0")]
+
+
+// ===== FILE: DIL.Test.AssemblyInfo.cs =====
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//     Runtime Version:4.0.30319.42000
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: System.Reflection.AssemblyCompanyAttribute("DIL.Test")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9766ff9d2cdd3acccfeb3aa09fd08b86d3f838cb")]
+[assembly: System.Reflection.AssemblyProductAttribute("DIL.Test")]
+[assembly: System.Reflection.AssemblyTitleAttribute("DIL.Test")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+
+
+// ===== FILE: DIL.Test.GlobalUsings.g.cs =====
+// <auto-generated/>
+global using System;
+global using System.Collections.Generic;
+global using System.IO;
+global using System.Linq;
+global using System.Net.Http;
+global using System.Threading;
+global using System.Threading.Tasks;
+
+
+// ===== FILE: .NETCoreApp,Version=v9.0.AssemblyAttributes.cs =====
+// <autogenerated />
+using System;
+using System.Reflection;
+[assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v9.0", FrameworkDisplayName = ".NET 9.0")]
+
+
+// ===== FILE: DIL.Test.AssemblyInfo.cs =====
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//     Runtime Version:4.0.30319.42000
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: System.Reflection.AssemblyCompanyAttribute("DIL.Test")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyProductAttribute("DIL.Test")]
+[assembly: System.Reflection.AssemblyTitleAttribute("DIL.Test")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+
+
+// ===== FILE: DIL.Test.GlobalUsings.g.cs =====
+// <auto-generated/>
+global using global::System;
+global using global::System.Collections.Generic;
+global using global::System.IO;
+global using global::System.Linq;
+global using global::System.Net.Http;
+global using global::System.Threading;
+global using global::System.Threading.Tasks;
+
+

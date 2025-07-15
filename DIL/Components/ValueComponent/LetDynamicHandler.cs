@@ -1,6 +1,8 @@
-﻿using System;
+﻿using DIL.Components.ClassComponents;
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 
 namespace DIL.Components.ValueComponent
 {
@@ -19,9 +21,19 @@ namespace DIL.Components.ValueComponent
 
             for (int i = 1; i < parts.Length; i++)
             {
-                if (value is IList list && int.TryParse(parts[i], out var index))
+                if (value is IEnumerable list_ )
                 {
-                    if (index < 0 || index >= list.Count)
+                    var list = list_.Cast<object>().ToArray();
+                    int index = -1;
+                    if (Regex.Match(parts[i], @"^\d+$").Success && (int.TryParse(parts[i], out index)));
+                    else
+                    {
+                        var GetVarValue = LetDynamicHandler.HandleGet(parts[i]).ToString();
+                        
+                        index = (int)LetParser.Parse(GetVarValue, "int");
+                        
+                    }
+                    if (index < 0 || index >= list.Length)
                         throw new Exception($"Index '{index}' out of range for array '{baseKey}'.");
                     value = list[index];
                 }
@@ -37,12 +49,17 @@ namespace DIL.Components.ValueComponent
                         throw new Exception($"Index '{index_str}' out of range for array '{baseKey}'.");
                     value = str[index_str];
                 }
+                else if(value is ClassInstance c)
+                {
+                    //User->Type,User->... for ClassInstanceS
+                    value = c.GetProperty(parts[i]);
+                }
+               
                 else
                 {
                     throw new Exception($"Invalid query part '{parts[i]}' for variable '{baseKey}'.");
                 }
             }
-            Console.WriteLine(value);
             return value;
         }
     }

@@ -1,404 +1,306 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace DIL.Components.ValueComponent.Tokens
 {
-    public record Token(TokenType tokenType, TokenOperator @operator, object @value, int postion_start, int postion_end);
+    public record Token(
+        TokenType tokenType,
+        TokenOperator @operator,
+        object value,
+        int postion_start,
+        int postion_end
+    );
 
-    public class InlineEvaluate : GetComponent
+    public class InlineEvaluate : ClassComponents.ClassComponent
     {
         private const string TokenRegex =
-            @"(?<NUMBER>\d+(\.\d+)?)|(?<STRING>"".*?"")|(?<OPERATOR>(\+|\-|\*|%|&|<|>|>=|<=|==|=!|&|&&|\||\|\|))|(?<BRACKET>[(){}[\]])|(?<IDENTIFIER>[a-zA-Z_][a-zA-Z0-9_]*)";
+            @"(?<NUMBER>\d+(\.\d+)?)|(?<STRING>"".*?"")|(?<OPERATOR>(\+|\-|\*|/|%|&|\|\||\|\||==|is|!=|<=|>=|<<|>>))|(?<SETTER>=)|(?<BRACKET>[(){}\[\]])|(?<IDENTIFIER>(\b[a-zA-Z_]\w*(?:->\w+|\[\d+\])*(?:->\w+|\[\d+\])*?(?:\s*,\s*\b[a-zA-Z_]\w*(?:->\w+|\[\d+\])*(?:->\w+|\[\d+\])*)*))";
 
         private readonly List<Token> tokens;
-        private static readonly Dictionary<TokenOperator, string> OperatorSymbols = new()
-        {
-            { TokenOperator.None, "" },
-            { TokenOperator.Add, "+" },
-            { TokenOperator.Subtract, "-" },
-            { TokenOperator.Multiply, "*" },
-            { TokenOperator.Divide, "/" },
-            { TokenOperator.Modulus, "%" },
-            { TokenOperator.BitwiseAnd, "&" },
-            { TokenOperator.BitwiseOr, "|" },
-            { TokenOperator.LogicalAnd, "&&" },
-            { TokenOperator.LogicalOr, "||" },
-            { TokenOperator.GreaterThan, ">" },
-            { TokenOperator.LessThan, "<" },
-            { TokenOperator.Equal, "==" },
-            { TokenOperator.NotEqual, "!=" }
-        };
         private readonly string _inline;
+        private static readonly GetComponent _getcomponent = new();
+
+        // Main constructor
         public InlineEvaluate(string inline)
         {
-            this._inline = inline;
+            _inline = inline;
             tokens = BuildTokens(inline);
             ValidateTokens(tokens);
         }
 
+        // Internal use for recursive bracket evaluation
+        internal InlineEvaluate(List<Token> tokens)
+        {
+            _inline = string.Empty;
+            this.tokens = tokens;
+        }
+
         private List<Token> BuildTokens(string inline)
         {
-            var regexResults = Regex.Matches(inline, TokenRegex);
             var tokenList = new List<Token>();
-            var matches = Regex.Matches(inline, @"(\w+)\s*:\s*((""[^""]*"")|(\{(?:[^{}]*|(?<Open>\{)|(?<-Open>\}))*\}(?(Open)(?!)))|(\[(?:[^\[\]]*|(?<Open>\[)|(?<-Open>\]))*\](?(Open)(?!)))|([^,{}]+))");
-            if(matches.Count>0)
-            {
-                foreach (Match match in matches)
-                {
-                    foreach(var token in BuildTokens(match.Groups[2].Value))
-                    {
-                        tokenList.Add(new Token(token.tokenType,token.@operator,token.value, match.Groups[1].Value.Length + 2,token.postion_end));
-                    }
-                }
-                return tokenList;   
-            }
+            var regexResults = Regex.Matches(inline, TokenRegex);
 
             foreach (Match match in regexResults)
             {
+               
                 if (match.Groups["NUMBER"].Success)
-                {
-                    tokenList.Add(new Token(
-                        TokenType.Number,
-                        TokenOperator.None,
-                        double.Parse(match.Groups["NUMBER"].Value),
-                        match.Index,
-                        match.Index + match.Length
-                    ));
-                }
+                    tokenList.Add(new Token(TokenType.Number, TokenOperator.None, double.Parse(match.Value), match.Index, match.Index + match.Length));
                 else if (match.Groups["STRING"].Success)
-                {
-                    tokenList.Add(new Token(
-                        TokenType.String,
-                        TokenOperator.None,
-                        match.Groups["STRING"].Value.Trim('"'),
-                        match.Index,
-                        match.Index + match.Length
-                    ));
-                }
+                    tokenList.Add(new Token(TokenType.String, TokenOperator.None, match.Value.Trim('"'), match.Index, match.Index + match.Length));
                 else if (match.Groups["OPERATOR"].Success)
-                {
-                    tokenList.Add(new Token(
-                        TokenType.Operator,
-                        ParseOperator(match.Groups["OPERATOR"].Value),
-                        match.Groups["OPERATOR"].Value,
-                        match.Index,
-                        match.Index + match.Length
-                    ));
-                }
+                    tokenList.Add(new Token(TokenType.Operator, ParseOperator(match.Value.Trim()), match.Value, match.Index, match.Index + match.Length));
                 else if (match.Groups["BRACKET"].Success)
-                {
-                    tokenList.Add(new Token(
-                        TokenType.Bracket,
-                        TokenOperator.None,
-                        match.Groups["BRACKET"].Value,
-                        match.Index,
-                        match.Index + match.Length
-                    ));
-                }
+                    tokenList.Add(new Token(TokenType.Bracket, TokenOperator.None, match.Value, match.Index, match.Index + match.Length));
                 else if (match.Groups["IDENTIFIER"].Success)
-                {
-                    tokenList.Add(new Token(
-                        TokenType.Identifier,
-                        TokenOperator.None,
-                        match.Groups["IDENTIFIER"].Value,
-                        match.Index,
-                        match.Index + match.Length
-                    ));
-                }
+                    tokenList.Add(new Token(TokenType.Identifier, TokenOperator.None, match.Value, match.Index, match.Index + match.Length));
+                else if (match.Groups["SETTER"].Success)
+                    tokenList.Add(new Token(TokenType.Identifier, TokenOperator.SETTER, match.Value, match.Index, match.Index + match.Length));
             }
-           
-            return /*reves(*/tokenList/*)*/;
+
+            return tokenList;
         }
-        private List<Token> reves(List<Token> tokens)
-        {
-            List<Token> ret = new List<Token>(tokens.Count+1);
-            for (int i = tokens.Count-1; i!=-1; i--)
-            {
-                if (tokens[i].tokenType == TokenType.Bracket)
-                {
-                    ret.Add(new(tokens[i].tokenType, tokens[i].@operator, (tokens[i].value is string s && s == ")" ? "(" : tokens[i].value is string m&& m=="("?")": tokens[i].value), tokens[i].postion_start, tokens[i].postion_end));
-                }
-                else
-                {
-                    ret.Add(tokens[i]);
-                }
-            }
-            return ret;
-        }
+
         private void ValidateTokens(List<Token> tokenList)
         {
-            // Check for empty token list
-            if (tokenList.Count == 0)
-                throw new InvalidOperationException("No valid tokens found in the input.");
-
-            // Check for balanced and properly ordered brackets
-            var bracketStack = new Stack<Token>();
-            foreach (var t in tokenList)
+            var stack = new Stack<Token>();
+            foreach (var token in tokenList)
             {
-                if (t.tokenType == TokenType.Bracket)
+                if (token.tokenType == TokenType.Bracket)
                 {
-                    var ch = t.value.ToString();
-                    if (ch == "(" || ch == "{" || ch == "[")
+                    var ch = token.value.ToString();
+                    if (IsOpeningBracket(ch)) stack.Push(token);
+                    else if (IsClosingBracket(ch))
                     {
-                        bracketStack.Push(t);
-                    }
-                    else if (ch == ")" || ch == "}" || ch == "]")
-                    {
-                        if (bracketStack.Count == 0)
-                            throw new InvalidOperationException($"Unmatched closing bracket '{ch}' at position {t.postion_start}.");
-                        var opening = bracketStack.Pop().value.ToString();
-                        if (!IsMatchingBracket(opening, ch))
-                            throw new InvalidOperationException($"Mismatched brackets '{opening}' and '{ch}' at position {t.postion_start}.");
+                        if (stack.Count == 0 || !IsMatchingBracket(stack.Pop().value.ToString(), ch))
+                            throw new InvalidOperationException($"Mismatched or unmatched bracket '{ch}' at position {token.postion_start}.");
                     }
                 }
             }
-            if (bracketStack.Count > 0)
-                throw new InvalidOperationException("Unmatched opening bracket(s).");
-
-            // Check for invalid sequences: operator followed by operator, bracket sequences, etc.
-            // We will ensure that no two operators occur consecutively (unless a bracket or identifier/number/string in between)
-            // and that the expression doesn't start or end with a nonsensical token.
-            Token prev = null;
-            for (int i = 0; i < tokenList.Count; i++)
-            {
-                var current = tokenList[i];
-                // Expression shouldn't start with an operator that isn't unary-friendly
-                if (i == 0 && current.tokenType == TokenType.Operator && current.@operator != TokenOperator.Subtract)
-                {
-                    throw new InvalidOperationException($"Expression starts with an invalid operator '{current.value}' at position {current.postion_start}.");
-                }
-
-                // Check consecutive operators (e.g., "++", "+*", "&&/")
-                if (prev != null && prev.tokenType == TokenType.Operator && current.tokenType == TokenType.Operator)
-                {
-                    throw new InvalidOperationException($"Invalid consecutive operators '{prev.value}' and '{current.value}' at position {current.postion_start}.");
-                }
-
-                // Check that after an operator, we get a valid token (not another operator or a closing bracket)
-                if (prev != null && prev.tokenType == TokenType.Operator)
-                {
-                    // After an operator, we expect either a number, string, identifier, or an opening bracket
-                    if (!(current.tokenType == TokenType.Number ||
-                          current.tokenType == TokenType.String ||
-                          current.tokenType == TokenType.Identifier ||
-                          (current.tokenType == TokenType.Bracket && IsOpeningBracket(current.value.ToString()))))
-                    {
-                        throw new InvalidOperationException($"Invalid token '{current.value}' after operator '{prev.value}' at position {current.postion_start}.");
-                    }
-                }
-
-                // Check that we don't have a closing bracket without a proper preceding token
-                if (current.tokenType == TokenType.Bracket && IsClosingBracket(current.value.ToString()) && prev != null)
-                {
-                    // Before a closing bracket, we don't expect another operator (unless brackets handle it)
-                    if (prev.tokenType == TokenType.Operator)
-                    {
-                        throw new InvalidOperationException($"Operator '{prev.value}' before closing bracket '{current.value}' at position {current.postion_start} is invalid.");
-                    }
-                }
-
-                prev = current;
-            }
-
-            // The expression shouldn't end with an operator
-            var lastToken = tokenList[^1];
-            if (lastToken.tokenType == TokenType.Operator)
-                throw new InvalidOperationException($"Expression ends with an operator '{lastToken.value}'.");
-
+            if (stack.Count > 0)
+                throw new InvalidOperationException("Unmatched opening brackets found.");
         }
 
-        private bool IsMatchingBracket(string opening, string closing)
+        public object Parse(bool returnRaw = false)
         {
-            return (opening == "(" && closing == ")") ||
-                   (opening == "[" && closing == "]") ||
-                   (opening == "{" && closing == "}");
+            object result = EvaluateTokens(tokens);
+            return returnRaw
+                ? result
+                : EditRange(_inline, tokens[0].postion_start, tokens[^1].postion_end - 1, result.ToString());
         }
 
-        private bool IsOpeningBracket(string bracket)
+        private object EvaluateTokens(List<Token> tokens)
         {
-            return bracket == "(" || bracket == "{" || bracket == "[";
-        }
-
-        private bool IsClosingBracket(string bracket)
-        {
-            return bracket == ")" || bracket == "}" || bracket == "]";
-        }
-
-        public string Parse()
-        {
-            object left_side = null;
-            object right_side = null;
-            TokenOperator opr = TokenOperator.None;
-            object current_result = null;
+            object left_name = null;
+            bool RefSet = false;
+            object? left = null, right = null;
+            TokenOperator currentOp = TokenOperator.None;
 
             for (int i = 0; i < tokens.Count; i++)
             {
-            retryleft:
-                if (i + 1 >= tokens.Count)
+                var token = tokens[i];
+
+                if (token.tokenType == TokenType.Bracket && IsOpeningBracket(token.value.ToString()))
+                {
+                    var subTokens = ExtractBracketTokens(tokens, i, out int newIndex);
+                    left ??= new InlineEvaluate(subTokens).Parse(true);
+                    i = newIndex;
                     continue;
-                var left_token = tokens[i];
-                _ = (left_token.tokenType) switch
-                {
-                    TokenType.String =>
-                        left_side = left_token.value,
-                    TokenType.Number =>
-                           left_side = Convert.ToDouble(left_token.value),
-                    TokenType.Identifier =>
-                            left_side = GetVariable(left_token.value.ToString()!) ?? throw new InvalidOperationException(@$"invalid operation: ""{left_token.@operator}"" at {left_token.value}"),
-                    TokenType.Bracket => i++,
-                    TokenType.Operator when opr is TokenOperator.None && left_side is not null =>
-                    opr = left_token.@operator,
-                    TokenType.Operator when opr is not TokenOperator.None && left_side is null =>
-                          throw new InvalidOperationException(@$"invalid operation: ""{left_token.@operator}"" at {left_token.value}"),
-                    _ =>
-                       throw new InvalidOperationException(@$"invalid operation: ""{left_token.@operator}"" at {left_token.value}"),
-
-                };
-                if (left_token.tokenType == TokenType.Bracket)
-                {
-                    goto retryleft;
                 }
-            retry_right:
-                if (i + 1 <= tokens.Count && opr is not TokenOperator.None)
-                {
-                    var right_token = tokens[i + 1];
 
-                    _ = (right_token.tokenType) switch
+                switch (token.tokenType)
+                {
+                    case TokenType.Number:
+                    case TokenType.String:
+                        left ??= token.value;
+                        break;
+
+                    case TokenType.Identifier:
+                        left_name = token.value;
+                        left ??= _getcomponent.GetVariable(token.value.ToString())
+                        ?? throw new InvalidOperationException($"Unknown identifier: {token.value}");
+
+                        break;
+
+                    case TokenType.Operator:
+                        if (left == null) throw new InvalidOperationException("Missing left operand.");
+                        currentOp = token.@operator;
+                        break;
+
+                }
+
+                if (currentOp != TokenOperator.None && i + 1 < tokens.Count)
+                {
+                    var rightToken = tokens[++i];
+                    if(rightToken.@operator == TokenOperator.SETTER)
                     {
-                        TokenType.String =>
-                            right_side = right_token.value,
-                        TokenType.Number =>
-                               right_side = Convert.ToDouble(right_token.value),
-                        TokenType.Identifier =>
-                                right_side = GetVariable(right_token.value.ToString()!) ?? throw new InvalidOperationException(@$"invalid operation: ""{left_token.@operator}"" at {left_token.value}"),
-                        TokenType.Bracket =>
-                           i++,
-                        _ =>
-                           throw new InvalidOperationException(@$"invalid operation: ""{left_token.@operator}"" at {left_token.value}"),
-                    };
-                    if (right_token.tokenType == TokenType.Bracket)
-                    {
-                        goto retry_right;
+                        if(left_name is not "")
+                        {
+                            RefSet = true;
+                            
+                        }
+                                else
+                            throw new InvalidOperationException("Not able to set value .null.");
+                        rightToken = tokens[++i];
 
                     }
 
-                    current_result = Evaluate(current_result ?? left_side??default!, opr, right_side??default(object)!);
-                    opr = TokenOperator.None;
-                    i++;
-                    continue;
-                }
-                else if (opr is not TokenOperator.None)
-                {
-                    throw new InvalidOperationException(@$"invalid operation: ""{left_token.@operator}"" at {left_token.value}");
-                }
-                current_result ??= left_side??"";
+                    if (rightToken.tokenType == TokenType.Bracket && IsOpeningBracket(rightToken.value.ToString()))
+                    {
+                        var subTokens = ExtractBracketTokens(tokens, i, out int newIndex);
+                        right = new InlineEvaluate(subTokens).Parse(true);
+                        
+                        i = newIndex;
+                    }
+                    else
+                    {
+                       
+                        right = rightToken.tokenType switch
+                        {
+                            TokenType.Number => Convert.ToDouble(rightToken.value),
+                            TokenType.String => rightToken.value,
+                            TokenType.Identifier => _getcomponent.GetVariable(rightToken.value.ToString()),
+                            _ => throw new InvalidOperationException($"Invalid right operand: {rightToken.value}")
+                        };
+                    }
+                    var leftType = left.GetType();
+                    left = Evaluate(left!, currentOp, right!);
+                    if(left is bool v &&v)
+                    {
+                        //(b-20)(condtions(>>,<<))=(setter)=20
+                        //if the codtion is true the identifier is automac reset to the right value
+                        // If the condition (e.g., b > 20) is true, assign right to the original identifier
+                        if (RefSet)
+                        {
+                            if (string.IsNullOrWhiteSpace(left_name?.ToString()))
+                                throw new InvalidOperationException(
+                                                                   $"Failed to assign value '{right}' to 'Identifier' of type '{leftType.Name}' because there was no direct Identifier");
+                            RefSet = false; // mark ref assignment as consumed
 
+                            try
+                            {
+                                var convertedRight = Convert.ChangeType(right, leftType);
+                                _getcomponent.NewSet(left_name!.ToString(), convertedRight);
+                            }
+                            catch (Exception ex)
+                            {
+                                throw new InvalidOperationException(
+                                    $"Failed to assign value '{right}' to '{left_name}' of type '{leftType.Name}': {ex.Message}", ex);
+                            }
+                        }
+                    }
+                    currentOp = TokenOperator.None;
+                  
+                    right = null;
+                }
+            }
+            
+
+            return left ?? throw new InvalidOperationException("No valid expression to evaluate.");
+        }
+
+        private static List<Token> ExtractBracketTokens(List<Token> allTokens, int startIndex, out int newIndex)
+        {
+            var open = allTokens[startIndex].value.ToString();
+            var close = open switch
+            {
+                "(" => ")",
+                "[" => "]",
+                "{" => "}",
+                _ => throw new InvalidOperationException("Invalid bracket.")
+            };
+
+            int depth = 1;
+            var subTokens = new List<Token>();
+            newIndex = startIndex + 1;
+
+            for (; newIndex < allTokens.Count; newIndex++)
+            {
+                var t = allTokens[newIndex];
+                if (t.tokenType == TokenType.Bracket)
+                {
+                    if (t.value.ToString() == open) depth++;
+                    else if (t.value.ToString() == close) depth--;
+                }
+
+                if (depth == 0) break;
+                subTokens.Add(t);
             }
 
-            if (current_result is null)
-                return _inline;
-            return EditRange(_inline, tokens[0].postion_start, tokens[tokens.Count - 1].postion_end - 1, current_result!.ToString()!); ;
+            if (depth != 0)
+                throw new InvalidOperationException($"Unmatched bracket starting at position {allTokens[startIndex].postion_start}");
+
+            return subTokens;
+        }
+
+        public static object Evaluate(object left, TokenOperator op, object right)
+        {
+            right = Convert.ChangeType(right, left.GetType());
+            return op switch
+            {
+                TokenOperator.Add => TryNumeric(left, right, (a, b) => a + b) ?? left.ToString() + right.ToString(),
+                TokenOperator.Subtract => ToDouble(left) - ToDouble(right),
+                TokenOperator.Multiply => ToDouble(left) * ToDouble(right),
+                TokenOperator.Divide => ToDouble(right) == 0 ? throw new DivideByZeroException() : ToDouble(left) / ToDouble(right),
+                TokenOperator.Modulus => ToDouble(left) % ToDouble(right),
+                TokenOperator.BitwiseAnd => ToInt(left) & ToInt(right),
+                TokenOperator.BitwiseOr => ToInt(left) | ToInt(right),
+                TokenOperator.LogicalAnd => ToBool(left) && ToBool(right),
+                TokenOperator.LogicalOr => ToBool(left) || ToBool(right),
+                TokenOperator.Equal => Equals(left, right),
+                TokenOperator.NotEqual => !Equals(left, right),
+                TokenOperator.LessThan => ToDouble(left) < ToDouble(right),
+                TokenOperator.GreaterThan => ToDouble(left) > ToDouble(right),
+                TokenOperator.LessThanOrEqual => ToDouble(left) <= ToDouble(right),
+                TokenOperator.GreaterThanOrEqual => ToDouble(left) >= ToDouble(right),
+                _ => throw new InvalidOperationException("Unsupported operator")
+            };
         }
 
         public static string EditRange(string input, int start, int end, string newValue)
         {
-            if (start < 0 || end >= input.Length || start > end)
-                throw new ArgumentOutOfRangeException("Invalid start or end positions.");
-
-            // Replace the substring between start and end with newValue
             return input.Substring(0, start) + newValue + input.Substring(end + 1);
         }
 
-        public static object Evaluate(object left, TokenOperator opar, object right)
+        private static double ToDouble(object val) => Convert.ToDouble(val);
+        private static int ToInt(object val) => Convert.ToInt32(val);
+        private static bool ToBool(object val) => Convert.ToBoolean(val);
+
+        private static object? TryNumeric(object a, object b, Func<double, double, object> op)
         {
-            if (opar == TokenOperator.None)
-            {
-                // If operator is None, just return the left value
-                throw new InvalidOperationException(@$"invalid operation: ""{left}"" at {left} {nameof(opar)} {right}");
-            }
-
-            switch (opar)
-            {
-                case TokenOperator.Add:
-                    {
-                        try
-                        {
-                            return Convert.ToDouble(left) + Convert.ToDouble(right);
-                        }
-                        catch
-                        {
-                            return left.ToString() + right.ToString();
-                        }
-                    }
-
-                case TokenOperator.Subtract:
-                    return Convert.ToDouble(left) - Convert.ToDouble(right);
-
-                case TokenOperator.Multiply:
-                    return Convert.ToDouble(left) * Convert.ToDouble(right);
-
-                case TokenOperator.Divide:
-                    if (Convert.ToDouble(right) == 0)
-                        throw new DivideByZeroException("Division by zero is not allowed.");
-                    return Convert.ToDouble(left) / Convert.ToDouble(right);
-
-                case TokenOperator.Modulus:
-                    return Convert.ToDouble(left) % Convert.ToDouble(right);
-
-                case TokenOperator.BitwiseAnd:
-                    return Convert.ToInt32(left) & Convert.ToInt32(right);
-
-                case TokenOperator.BitwiseOr:
-                    return Convert.ToInt32(left) | Convert.ToInt32(right);
-
-                case TokenOperator.LogicalAnd:
-                    return Convert.ToBoolean(left) && Convert.ToBoolean(right);
-
-                case TokenOperator.LogicalOr:
-                    return Convert.ToBoolean(left) || Convert.ToBoolean(right);
-
-                case TokenOperator.GreaterThan:
-                    return Convert.ToDouble(left) > Convert.ToDouble(right);
-
-                case TokenOperator.LessThan:
-                    return Convert.ToDouble(left) < Convert.ToDouble(right);
-
-                case TokenOperator.Equal:
-                    return Equals(left, right);
-
-                case TokenOperator.NotEqual:
-                    return !Equals(left, right);
-                case TokenOperator.LessThanOrEqual: return Equals(left, right)|| Convert.ToDouble(left) < Convert.ToDouble(right);
-                case TokenOperator.GreaterThanOrEqual: return Equals(left, right) || Convert.ToDouble(left) > Convert.ToDouble(right);
-                default:
-                    throw new NotImplementedException($"Operator '{opar}' is not implemented.");
-            }
+            try { return op(ToDouble(a), ToDouble(b)); } catch { return null; }
         }
 
-        private TokenOperator ParseOperator(string op)
-        {
-            return op switch
+        private static bool IsOpeningBracket(string b) => b is "(" or "{" or "[";
+        private static bool IsClosingBracket(string b) => b is ")" or "}" or "]";
+        private static bool IsMatchingBracket(string open, string close) =>
+            (open, close) switch
             {
-                "+" => TokenOperator.Add,
-                "-" => TokenOperator.Subtract,
-                "*" => TokenOperator.Multiply,
-                "/" => TokenOperator.Divide,
-                "%" => TokenOperator.Modulus,
-                "&" => TokenOperator.BitwiseAnd,
-                "|" => TokenOperator.BitwiseOr,
-                "&&" => TokenOperator.LogicalAnd,
-                "||" => TokenOperator.LogicalOr,
-                ">" => TokenOperator.GreaterThan,
-                "<" => TokenOperator.LessThan,
-                "<=" => TokenOperator.LessThanOrEqual,
-                ">="=>TokenOperator.GreaterThanOrEqual,
-                "==" => TokenOperator.Equal,
-                "!=" => TokenOperator.NotEqual,
-                _ => TokenOperator.None
+                ("(", ")") => true,
+                ("[", "]") => true,
+                ("{", "}") => true,
+                _ => false
             };
-        }
 
+        private TokenOperator ParseOperator(string op) => op switch
+        {
+            "+" => TokenOperator.Add,
+            "-" => TokenOperator.Subtract,
+            "*" => TokenOperator.Multiply,
+            "/" => TokenOperator.Divide,
+            "%" => TokenOperator.Modulus,
+            "&" => TokenOperator.BitwiseAnd,
+            "|" => TokenOperator.BitwiseOr,
+            "&&" => TokenOperator.LogicalAnd,
+            "||" => TokenOperator.LogicalOr,
+            ">>" => TokenOperator.GreaterThan,
+            "<<" => TokenOperator.LessThan,
+            "<=" => TokenOperator.LessThanOrEqual,
+            ">=" => TokenOperator.GreaterThanOrEqual,
+            "==" or "is" => TokenOperator.Equal,
+            "!=" or "is not"=> TokenOperator.NotEqual,
+            _ => throw new InvalidOperationException($"Unknown operator: {op}")
+        };
     }
 }

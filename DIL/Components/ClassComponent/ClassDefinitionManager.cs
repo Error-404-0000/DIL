@@ -1,9 +1,12 @@
-﻿using System;
+﻿using DIL.Components.ValueComponent.Tokens;
+using DIL.Components.ValueComponent;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Text.RegularExpressions;
+using System.Reflection.Metadata;
 
-namespace DIL.Components.ClassComponent
+namespace DIL.Components.ClassComponents
 {
     /// <summary>
     /// Manages class definitions and instances.
@@ -46,36 +49,113 @@ namespace DIL.Components.ClassComponent
     /// </summary>
     public class ClassDefinition
     {
-        public string Name { get; }
-        public Dictionary<string, object?> Fields { get; }
-        public Dictionary<string, Func<object[], object?>> Methods { get; }
+        public enum ParameterType
+        {
+            DirectValue,
+            Class,
+            Object,
+            Arrary,
+            Map,
+            String,
+            Int
+        } 
+        public record Parameter(string ParameterName,ParameterType ParameterType);
+        public record FuncDefinition
+        {
+            public int ParameterCount { get; set; }
+            public string Name { get; set; }
+            public Parameter[] Parameters { get; set; }
+            public string Body {  get; set; }
 
-        public ClassDefinition(string name,string body)
+        }
+        public string Name { get; }
+        public Dictionary<string, object?> Fields { get; private set; } = new();
+        public Dictionary<string, Func<object[], object?>> Methods { get; private set; } = new();
+        public ClassDefinition(string name,List<string> bodys)
         {
             Name = name;
-            Fields = BuildFields(body);
+            LoadDefaultClassInfo();
+            BuildFields(bodys);
         }
-        public Dictionary<string, object?> BuildFields(string str_fields)
+        private void LoadDefaultClassInfo()
         {
-            Dictionary<string, object?> fields= new Dictionary<string, object?>();
-            var matches = Regex.Matches(string.Join(" ", str_fields.Split("\n")), @"(^(\w+[\W\d\S]*)\s*\:\s*(.*)\s*$)*");
-            if (matches.Count > 0)
+            Fields.Add("Type",Name);
+        }
+        public void BuildFields(List<string> str_fields)
+        {
+            bool forces_set=false;
+            foreach (var field in str_fields)
             {
-                foreach (Match item in matches)
+                var FieldMatch = Regex.Match(field, @"^(\w+[\W\d\S]*)\s*\:\s*(.*?)\s*(?:\s+as\s+(.+))?(?:\s*\$(overwrite)\$\s*)?$");
+                if (FieldMatch.Success)
                 {
-                    if (fields.ContainsKey(item.Value))
+                    //Type : name $overwrite$
+                    if (Fields.ContainsKey(FieldMatch.Groups[1].Value) && FieldMatch.Groups[4].Value!="overwrite")
                     {
-                        throw new DuplicateNameException($"DuplicateNameException in {item}.");
+                        throw new DuplicateNameException($"DuplicateNameException in {FieldMatch.Value}. use $overwrite$ to overwrite the value.");
                     }
-                    fields.Add(item.Groups[1].Value, item.Groups[2].Value);
+                    if (FieldMatch.Groups[4].Value == "overwrite")
+                        forces_set = true;
+                    if (Fields.TryGetValue(FieldMatch.Groups[2].Value,out object? value))
+                        AddProperty(FieldMatch.Groups[1].Value, value, forces_set);
+                    else
+                    {
+                        
+                        // Parse the value and apply the optional type
+                        object result = default;
+                        if (FieldMatch.Groups[2].Value.StartsWith('[') && FieldMatch.Groups[2].Value.EndsWith(']'))
+                        {
+                            string arrayContent = FieldMatch.Groups[2].Value;
+                            string pattern = @"\[([^,\]]+|""[^""]*"")(?:,|\])?";
+                            var matches = Regex.Matches(arrayContent, pattern);
+
+                            // Parse each item in the array
+                            var parsedItems = new List<string>();
+                            foreach (Match match in matches)
+                            {
+                                string value_ = match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value;
+                                InlineEvaluate inline = new InlineEvaluate(value_);
+                                parsedItems.Add(inline.Parse().ToString()!);
+                            }
+
+                            // Combine the parsed results back into the result variable
+                            result = $"[{string.Join(",", parsedItems)}]";
+                            result = LetParser.Parse((string)result, "array");
+                        }
+                        else if (FieldMatch.Groups[3].Value is "class")
+                        {
+                            //throws error if class IsNotdefined
+                            var classDefinition = ClassDefinitionManager.GetClass(FieldMatch.Groups[2].Value);
+                            result = classDefinition;
+                        }
+                        else
+                        {
+                            if (FieldMatch.Groups[3].Value is not "map")
+                            {
+                                InlineEvaluate inline = new InlineEvaluate(FieldMatch.Groups[2].Value);
+                                result = inline.Parse(true);
+                                if (result is not ClassDefinition or ClassInstance)
+                                {
+                                    result = LetParser.Parse(result.ToString()!, string.IsNullOrEmpty(FieldMatch.Groups[3].Value) ? "object" : FieldMatch.Groups[3].Value);
+                                }
+                            }
+                            else
+                            {
+                                result = LetParser.Parse(FieldMatch.Groups[2].Value, string.IsNullOrEmpty(FieldMatch.Groups[3].Value) ? "object" : FieldMatch.Groups[3].Value);
+                            }
+                        }
+                        
+
+                        AddProperty(FieldMatch.Groups[1].Value.Trim(),result, forces_set);
+                    }
                 }
             }
-            return fields;
+        
         }
 
-        public void AddProperty(string propertyName, object? defaultValue = null)
+        public void AddProperty(string propertyName, object? defaultValue = null,bool force_set = false)
         {
-            if (Fields.ContainsKey(propertyName))
+            if (Fields.ContainsKey(propertyName)&&!force_set)
                 throw new Exception($"Property '{propertyName}' is already defined in class '{Name}'.");
             Fields[propertyName] = defaultValue;
         }

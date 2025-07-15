@@ -6,7 +6,6 @@ using System.Text.RegularExpressions;
 using DIL.Middlewares;
 using DIL.Attributes;
 using DIL.Interfaces;
-using DIL.Components.ClassComponent;
 
 namespace DIL.Core
 {
@@ -135,7 +134,7 @@ namespace DIL.Core
             if (string.IsNullOrEmpty(line))
                 return;
 
-            // Collect all matches from all methods and pick the best one.
+            // Collect all matches from all methods
             List<(MethodInfo method, Type componentType, Match match, string pattern)> potentialMatches = new();
 
             foreach (var component in _registeredComponents)
@@ -147,10 +146,7 @@ namespace DIL.Core
                     var full_i = method.GetCustomAttribute<RegexUseFullInstructionAttribute>();
                     if (regexAttribute != null)
                     {
-                        // If we have a full instruction attribute, we match against the entire remaining input lines
-                        // starting from current line, otherwise just the single line.
                         string target = full_i != null ? string.Join("\n", lines.Skip(excute_line)) : line;
-
                         var match = Regex.Match(target, regexAttribute.Pattern);
                         if (match.Success)
                         {
@@ -163,14 +159,99 @@ namespace DIL.Core
 
             if (!potentialMatches.Any())
             {
-                throw new Exception($"Invalid token: \"{line}\"");
+                // No full matches found. Let's find the best partial match and where it stops.
+                (string pattern, int partialMatchLength) = FindBestPartialMatch(line);
+
+                if (partialMatchLength > 0 && partialMatchLength < line.Length)
+                {
+                    // Partial match found. Show from the exact character where we fail.
+                    // For example, if `class User` matched and the line is `class User<T>:something`,
+                    // partialMatchLength would be the length of `class User`. We'll print:
+                    // "class User Invalid token "<T>:something""
+                    string matchedPart = line.Substring(0, partialMatchLength);
+                    string invalidPart = line.Substring(partialMatchLength);
+
+                    throw new Exception($"{matchedPart} Invalid token \"{invalidPart}\"");
+                }
+                else
+                {
+                    // No partial match or it's the full line but still invalid.
+                    throw new Exception($"Invalid token: \"{line}\"");
+                }
             }
 
-            // Pick the best match. We define "best" as the longest match or the most specific.
-            // For simplicity, let's pick the one with the longest matched value length.
-            var best = potentialMatches.OrderByDescending(m => m.match.Value.Length).First();
+            // Pick the best match by longest matched value
+            var best = potentialMatches
+                .Select(m =>
+                {
+                    int namedGroups = m.match.Groups.Cast<Group>().Count(g => g.Name != "0" && m.match.Groups[g.Name].Success);
+                    int wildcards = Regex.Matches(m.pattern, @"\.\*|\.\+").Count;
+                    int patternLength = m.pattern.Length;
+                    int matchLength = m.match.Value.Length;
 
+                    int score = namedGroups * 1000 - wildcards * 500 + matchLength * 2 + patternLength;
+
+                    return (score, m);
+                })
+                .OrderByDescending(x => x.score)
+                .First()
+                .m;
             ExecuteMethod(best.componentType, best.method, best.match.Value, best.pattern);
+        }
+
+
+        private (string pattern, int matchLength) FindBestPartialMatch(string line)
+        {
+            int bestLength = 0;
+            string bestPattern = string.Empty;
+
+            // Gather all patterns
+            List<string> allPatterns = new List<string>();
+            foreach (var component in _registeredComponents)
+            {
+                var methods = component.Value.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
+                foreach (var method in methods)
+                {
+                    var regexAttribute = method.GetCustomAttribute<RegexUseAttribute>();
+                    if (regexAttribute != null)
+                    {
+                        allPatterns.Add(regexAttribute.Pattern);
+                    }
+                }
+            }
+
+            // For each pattern, we try to find the longest prefix of `line` that matches fully.
+            // We check progressive substrings from the start.
+            foreach (var pattern in allPatterns.Distinct())
+            {
+                int currentLongest = 0;
+                for (int length = 1; length <= line.Length; length++)
+                {
+                    string substring = line.Substring(0, length);
+
+                    // We want to see if 'substring' fully matches the pattern from start to end.
+                    // So we anchor the pattern at the start and end (^ and $).
+                    // If it matches, we update currentLongest.
+                    if (Regex.IsMatch(substring, "^" + pattern + "$"))
+                    {
+                        currentLongest = length;
+                    }
+                    else
+                    {
+                        // Once it fails for a given length, longer lengths won't match either,
+                        // because we're always starting from the beginning of `line`.
+                        break;
+                    }
+                }
+
+                if (currentLongest > bestLength)
+                {
+                    bestLength = currentLongest;
+                    bestPattern = pattern;
+                }
+            }
+
+            return (bestPattern, bestLength);
         }
 
         /// <summary>
@@ -225,7 +306,8 @@ namespace DIL.Core
 
             var instance = Activator.CreateInstance(componentType);
             var result = method.Invoke(instance, args);
-            excute_line += excute_line_jump;
+            if(args.Count() is not 0)
+                excute_line += args[excute_line_jump]is int v?v:0;
             return result;
         }
 

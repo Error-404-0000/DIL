@@ -24,6 +24,7 @@ namespace DIL.Components.ValueComponent.Tokens
         NotEqual,
         LessThanOrEqual,
         GreaterThanOrEqual,
+        SETTER
     }
 
 

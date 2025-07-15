@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DIL.Components.ValueComponent.Tokens;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
@@ -10,6 +11,8 @@ namespace DIL.Components.ValueComponent
         /// <summary>
         /// Parses a value expression into a dynamically inferred type.
         /// </summary>
+        ///
+        private readonly static ClassComponents.ClassComponent class_comp = new();
         public static object Parse(string valueExpression, string? type = null)
         {
             object parsedValue;
@@ -38,7 +41,7 @@ namespace DIL.Components.ValueComponent
             // Validate the parsed value against the provided type
             if (!LetValidator.Validate(parsedValue, type))
             {
-                throw new Exception($"Value '{valueExpression}' does not match the expected type '{type}'.");
+                throw new Exception($"Value '{valueExpression}' does not match the  type '{type}'.");
             }
 
             return LetValidator.Cast(parsedValue, type);
@@ -57,13 +60,15 @@ namespace DIL.Components.ValueComponent
                     "map" => ParseMap(valueExpression),
                     "int" when int.TryParse(valueExpression, out var intValue) => intValue,
                     "double" when double.TryParse(valueExpression, out var doubleValue) => doubleValue,
-                    "string" => valueExpression.Trim('\"'),
+                    "string" => valueExpression.TrimStart('\"').TrimEnd('\"'),
                     "binary" when Regex.IsMatch(valueExpression, @"^[01]+$") => ParseBinary(valueExpression),
                     "object" => valueExpression,
+                    "class" => class_comp.GetInstanceProperty(valueExpression.ToString()!, !string.IsNullOrEmpty(valueExpression) ? string.Join("->", valueExpression.Split("->")?.Skip(1) ?? []):"")?? 
+                    throw new InvalidOperationException(@$"invalid operation: ""{valueExpression}"" at {valueExpression}"),
                     _ => throw new ArgumentException($"Type '{type}' can't be cast.")
                 };
             }
-            
+
             // Infer type if 'type' is null
             if (valueExpression.StartsWith("[") && valueExpression.EndsWith("]"))
             {
@@ -83,15 +88,26 @@ namespace DIL.Components.ValueComponent
             }
             else if (valueExpression.StartsWith("\"") && valueExpression.EndsWith("\""))
             {
-                return valueExpression.Trim('\"'); // Infer as string
+                return valueExpression.TrimStart('\"').TrimEnd('\"'); // Infer as string
             }
             else if (Regex.IsMatch(valueExpression, @"^[01]+$"))
             {
                 return ParseBinary(valueExpression); // Infer as binary
             }
+            else if (LetValueStore.Contains(valueExpression.Trim()))
+            {
+                return LetValueStore.Get(valueExpression.Trim()) ?? default!;
+            }
+            else if (bool.TryParse(valueExpression, out bool result))
+                return result;
+           
             else
             {
-                throw new ArgumentException($"Cannot determine type for value: '{valueExpression}'.");
+                InlineEvaluate inline = new InlineEvaluate(valueExpression);
+                // Parse the value and apply the optional type
+                var value = LetParser.Parse(inline.Parse().ToString()!, type);
+                return value;
+                //throw new ArgumentException($"Cannot determine type for value: '{valueExpression}'.");
             }
         }
 
@@ -139,6 +155,7 @@ namespace DIL.Components.ValueComponent
                 if (bracketDepth == 0 && current == ',')
                 {
                     var element = value.Substring(start, i - start).Trim();
+                    
                     elements.Add(element.StartsWith("[") ? ParseArray(element) : InferAndParse(element));
                     start = i + 1;
                 }

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DIL.Components.ClassComponents;
+using System;
 using System.Collections;
 
 namespace DIL.Components.ValueComponent
@@ -21,6 +22,7 @@ namespace DIL.Components.ValueComponent
                 "array" => value is IList, // General array or list
                 "map" => value is IDictionary, // General dictionary
                 "object" => true, // Allow any non-null object
+                "class"=>value is ClassInstance,
                 _ => ValidateComplexType(value, type) // Handle complex or custom types
             };
         }
@@ -39,7 +41,8 @@ namespace DIL.Components.ValueComponent
                 "array" => ConvertToArray(value),
                 "map" => ConvertToMap(value),
                 "object" => value,
-                _ => throw new Exception($"Unsupported type casting to '{type}'.")
+                "class"=>value,
+                _ => throw new Exception($"Invalid type casting  '{type}'.")
             };
         }
 
@@ -54,7 +57,7 @@ namespace DIL.Components.ValueComponent
                 return ValidateNestedArray(value, type);
             }
 
-            throw new Exception($"Unknown or unsupported type: '{type}'.");
+            throw new Exception($"invaild token type: '{type}'.");
         }
 
         /// <summary>

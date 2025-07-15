@@ -1,5 +1,4 @@
-﻿
-namespace DIL.Components.ClassComponent
+﻿namespace DIL.Attributes
 {
     internal class CorePassCurrentLine_IndexAttribute : Attribute
     {
