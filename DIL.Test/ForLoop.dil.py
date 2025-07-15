@@ -1,4 +1,10 @@
-﻿//let nums = [1, 2, 3, 4*2] as array;
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@USING .PY JUST FOR THE HIGHLIGHT ---- THIS IS NOT PYTHON   @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+
+//let nums = [1, 2, 3, 4*2] as array;
 //FOR n IN n << 100 DO n=n+1; ;
 
 //    IF n%2 is 0 THEN;
