@@ -1,5 +1,9 @@
-﻿let a=1 as int;
-let b=2 as int;
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@USING .PY JUST FOR THE HIGHLIGHT ---- THIS IS NOT PYTHON   @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+
+let a= 1 as int;
+let b= 2 as int;
 b = 23 ;
 IF (b >> 20) !=   3 THEN;
 	Get a;
